@@ -1,0 +1,302 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+  SHARP X REBEL design system — premium Forex terminal
+  Dark navy base, charcoal surfaces, emerald (BUY / positive) + rose (SELL / negative).
+  All values are design tokens; components reference semantic names only.
+*/
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-muted: var(--primary-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-positive-muted: var(--positive-muted);
+
+  --color-negative: var(--negative);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-negative-muted: var(--negative-muted);
+
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Dark navy terminal — the product's canonical look */
+  --background: oklch(0.17 0.022 264);
+  --foreground: oklch(0.96 0.006 264);
+
+  --surface: oklch(0.20 0.022 264);
+  --surface-elevated: oklch(0.23 0.024 264);
+
+  --card: oklch(0.205 0.023 264);
+  --card-foreground: oklch(0.96 0.006 264);
+
+  --popover: oklch(0.215 0.024 264);
+  --popover-foreground: oklch(0.96 0.006 264);
+
+  --muted: oklch(0.26 0.022 264);
+  --muted-foreground: oklch(0.70 0.018 264);
+
+  --border: oklch(0.29 0.02 264);
+  --border-strong: oklch(0.36 0.022 264);
+  --input: oklch(0.27 0.02 264);
+  --ring: oklch(0.72 0.14 165);
+
+  --primary: oklch(0.74 0.15 165);
+  --primary-foreground: oklch(0.17 0.03 165);
+  --primary-muted: oklch(0.74 0.15 165 / 0.14);
+
+  --accent: oklch(0.72 0.12 210);
+  --accent-foreground: oklch(0.17 0.03 210);
+
+  --positive: oklch(0.76 0.16 160);
+  --positive-foreground: oklch(0.18 0.04 160);
+  --positive-muted: oklch(0.76 0.16 160 / 0.14);
+
+  --negative: oklch(0.68 0.19 18);
+  --negative-foreground: oklch(0.98 0.01 18);
+  --negative-muted: oklch(0.68 0.19 18 / 0.15);
+
+  --warning: oklch(0.82 0.15 85);
+  --warning-muted: oklch(0.82 0.15 85 / 0.14);
+
+  --info: oklch(0.72 0.12 250);
+  --info-muted: oklch(0.72 0.12 250 / 0.14);
+}
+
+/* Settings page offers a demo "light" preference; honored via [data-theme] on <html>. */
+:root[data-theme="light"] {
+  --background: oklch(0.98 0.004 264);
+  --foreground: oklch(0.22 0.02 264);
+
+  --surface: oklch(0.96 0.005 264);
+  --surface-elevated: oklch(1 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 264);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 264);
+
+  --muted: oklch(0.94 0.006 264);
+  --muted-foreground: oklch(0.48 0.02 264);
+
+  --border: oklch(0.90 0.008 264);
+  --border-strong: oklch(0.82 0.012 264);
+  --input: oklch(0.92 0.008 264);
+  --ring: oklch(0.6 0.13 165);
+
+  --primary: oklch(0.58 0.13 165);
+  --primary-foreground: oklch(0.99 0.01 165);
+  --primary-muted: oklch(0.58 0.13 165 / 0.12);
+
+  --accent: oklch(0.58 0.11 210);
+  --accent-foreground: oklch(0.99 0.01 210);
+
+  --positive: oklch(0.58 0.14 160);
+  --positive-foreground: oklch(0.99 0.01 160);
+  --positive-muted: oklch(0.58 0.14 160 / 0.12);
+
+  --negative: oklch(0.58 0.19 20);
+  --negative-foreground: oklch(0.99 0.01 20);
+  --negative-muted: oklch(0.58 0.19 20 / 0.12);
+
+  --warning: oklch(0.70 0.14 75);
+  --warning-muted: oklch(0.70 0.14 75 / 0.14);
+
+  --info: oklch(0.58 0.12 250);
+  --info-muted: oklch(0.58 0.12 250 / 0.12);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Tabular figures for all numeric/price data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--primary-muted);
+    color: var(--foreground);
+  }
+
+  /* Refined scrollbars for the terminal feel */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+    background-clip: content-box;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ── Animated aurora background ─────────────────────────────────────────── */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.4;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.aurora-blob-1 {
+  width: 42rem;
+  height: 42rem;
+  top: -12rem;
+  left: -8rem;
+  background: radial-gradient(circle at center, oklch(0.74 0.16 165), transparent 65%);
+  animation: aurora-float-1 22s ease-in-out infinite;
+}
+.aurora-blob-2 {
+  width: 38rem;
+  height: 38rem;
+  top: 15%;
+  right: -10rem;
+  background: radial-gradient(circle at center, oklch(0.6 0.22 290), transparent 65%);
+  animation: aurora-float-2 27s ease-in-out infinite;
+}
+.aurora-blob-3 {
+  width: 36rem;
+  height: 36rem;
+  bottom: -12rem;
+  left: 20%;
+  background: radial-gradient(circle at center, oklch(0.66 0.22 350), transparent 65%);
+  animation: aurora-float-3 31s ease-in-out infinite;
+}
+.aurora-blob-4 {
+  width: 30rem;
+  height: 30rem;
+  top: 40%;
+  left: 35%;
+  background: radial-gradient(circle at center, oklch(0.66 0.18 250), transparent 65%);
+  animation: aurora-float-1 36s ease-in-out infinite reverse;
+}
+
+/* Light theme: tone the glows down so text stays readable. */
+:root[data-theme="light"] .aurora-blob {
+  opacity: 0.22;
+  mix-blend-mode: normal;
+}
+
+@keyframes aurora-float-1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(7rem, 5rem) scale(1.12); }
+  100% { transform: translate(-3rem, 8rem) scale(1.04); }
+}
+@keyframes aurora-float-2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-8rem, 6rem) scale(1.1); }
+  100% { transform: translate(4rem, -4rem) scale(1.06); }
+}
+@keyframes aurora-float-3 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6rem, -6rem) scale(1.14); }
+  100% { transform: translate(-5rem, -2rem) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none;
+  }
+}
