@@ -9,7 +9,12 @@ import {
   Play,
   Timer,
   History as HistoryIcon,
+  CandlestickChart,
 } from "lucide-react";
+import {
+  TradingViewChart,
+  toTradingViewSymbol,
+} from "@/components/shared/tradingview-chart";
 import { PageHeader } from "@/components/layout/page-header";
 import { LiveBadge } from "@/components/shared/live-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -302,6 +307,23 @@ export default function QuickSignalsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Live market chart for the selected pair (1-minute candles — the finest
+          interval TradingView's free widget offers; your expiries are shorter). */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-2">
+            <CandlestickChart className="size-4 text-muted-foreground" />
+            {pairLabel} · live chart
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">1-minute candles</span>
+        </CardHeader>
+        <CardContent className="p-1 sm:p-2">
+          <div className="h-[46vh] min-h-[320px] w-full overflow-hidden rounded-lg">
+            <TradingViewChart symbol={toTradingViewSymbol(pair)} interval="1" />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

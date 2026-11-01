@@ -2,6 +2,25 @@
 
 import { useEffect, useRef } from "react";
 
+/** App pair symbol → TradingView symbol (gold uses OANDA's spot feed). */
+const TV_SYMBOLS: Record<string, string> = {
+  EURUSD: "FX:EURUSD",
+  GBPUSD: "FX:GBPUSD",
+  USDJPY: "FX:USDJPY",
+  XAUUSD: "OANDA:XAUUSD",
+  AUDUSD: "FX:AUDUSD",
+  USDCHF: "FX:USDCHF",
+  USDCAD: "FX:USDCAD",
+  NZDUSD: "FX:NZDUSD",
+  EURJPY: "FX:EURJPY",
+  GBPJPY: "FX:GBPJPY",
+  EURGBP: "FX:EURGBP",
+};
+
+export function toTradingViewSymbol(pair: string): string {
+  return TV_SYMBOLS[pair] ?? `FX:${pair}`;
+}
+
 /**
  * TradingView Advanced Chart widget (free embed). Loads TradingView's own live
  * market data — real charts, not app data — with full indicators and tools.
