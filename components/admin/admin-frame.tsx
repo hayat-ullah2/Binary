@@ -33,51 +33,43 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-3 px-4 sm:gap-4 md:px-6">
-          <Link href="/admin/keys" className="flex shrink-0 items-center">
-            <Logo collapsed className="sm:hidden" />
-            <Logo className="hidden sm:flex" />
-          </Link>
-          <span className="flex shrink-0 items-center gap-1 rounded-md border border-primary/30 bg-primary-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
-            <ShieldCheck className="size-3" />
-            Admin
-          </span>
+        <div className="mx-auto w-full max-w-[1400px] px-4 md:px-6">
+          {/* Top bar */}
+          <div className="flex h-16 items-center gap-3 sm:gap-4">
+            <Link href="/admin/keys" className="flex shrink-0 items-center">
+              <Logo collapsed className="sm:hidden" />
+              <Logo className="hidden sm:flex" />
+            </Link>
+            <span className="flex shrink-0 items-center gap-1 rounded-md border border-primary/30 bg-primary-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+              <ShieldCheck className="size-3" />
+              Admin
+            </span>
 
-          <nav className="ml-2 hidden items-center gap-1 sm:flex">
-            {ADMIN_NAV.map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-primary-muted text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
+            {/* Desktop nav (inline) */}
+            <nav className="ml-2 hidden items-center gap-1 sm:flex">
+              <AdminNavLinks pathname={pathname} />
+            </nav>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logout}
+              disabled={loggingOut}
+              className="ml-auto shrink-0"
+            >
+              {loggingOut ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <LogOut className="size-4" />
+              )}
+              Sign out
+            </Button>
+          </div>
+
+          {/* Mobile nav — scrollable row under the bar */}
+          <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-2.5 sm:hidden">
+            <AdminNavLinks pathname={pathname} />
           </nav>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={logout}
-            disabled={loggingOut}
-            className="ml-auto shrink-0"
-          >
-            {loggingOut ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <LogOut className="size-4" />
-            )}
-            Sign out
-          </Button>
         </div>
       </header>
 
@@ -85,5 +77,31 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+  );
+}
+
+/** Admin nav links — shared between the desktop inline bar and the mobile row. */
+function AdminNavLinks({ pathname }: { pathname: string }) {
+  return (
+    <>
+      {ADMIN_NAV.map((item) => {
+        const active = pathname.startsWith(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              active
+                ? "bg-primary-muted text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <item.icon className="size-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </>
   );
 }
