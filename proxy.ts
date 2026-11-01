@@ -67,5 +67,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
+  // Next.js 16 "proxy" always runs on the Node.js runtime, so Better Auth +
+  // the Neon driver (auth.api.getSession) work on Vercel with no extra config.
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
