@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Radio,
+  CandlestickChart,
   History,
   BarChart3,
   Eye,
@@ -22,6 +23,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, description: "Market overview & summary" },
   { label: "Live Signals", href: "/signals", icon: Radio, description: "Active trading signals" },
+  { label: "Live Chart", href: "/live-chart", icon: CandlestickChart, description: "TradingView charts" },
   { label: "Signal History", href: "/history", icon: History, description: "Closed signal results" },
   { label: "Analytics", href: "/analytics", icon: BarChart3, description: "Performance breakdowns" },
   { label: "Watchlist", href: "/watchlist", icon: Eye, description: "Tracked currency pairs" },
