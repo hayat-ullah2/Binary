@@ -24,6 +24,9 @@ export function TradingViewChart({
       document.documentElement.getAttribute("data-theme") === "light"
         ? "light"
         : "dark";
+    // On phones the left drawing toolbar eats the (already narrow) chart width —
+    // hide it so the candles get the full width.
+    const isMobile = window.innerWidth < 768;
 
     container.innerHTML = "";
     const widget = document.createElement("div");
@@ -46,7 +49,9 @@ export function TradingViewChart({
       locale: "en",
       autosize: true,
       allow_symbol_change: true,
-      hide_side_toolbar: false,
+      hide_side_toolbar: isMobile,
+      hide_legend: isMobile,
+      hide_volume: isMobile,
       support_host: "https://www.tradingview.com",
     });
     container.appendChild(script);

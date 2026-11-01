@@ -38,8 +38,8 @@ export default function LiveChartPage() {
         }
       />
 
-      {/* Pair selector */}
-      <div className="flex flex-wrap gap-2">
+      {/* Pair selector — single scrollable row so the chart gets more height */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {PAIRS.map((p) => (
           <button
             key={p.sym}
@@ -47,7 +47,7 @@ export default function LiveChartPage() {
             onClick={() => setActive(p)}
             aria-pressed={active.sym === p.sym}
             className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
               active.sym === p.sym
                 ? "border-primary bg-primary text-primary-foreground shadow-sm"
                 : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground"
@@ -60,8 +60,8 @@ export default function LiveChartPage() {
 
       {/* Chart */}
       <Card>
-        <CardContent className="p-2">
-          <div className="h-[60vh] min-h-[380px] w-full overflow-hidden rounded-lg sm:h-[65vh]">
+        <CardContent className="p-1 sm:p-2">
+          <div className="h-[72vh] min-h-[440px] w-full overflow-hidden rounded-lg sm:h-[66vh]">
             <TradingViewChart symbol={active.tv} />
           </div>
         </CardContent>
