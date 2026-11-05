@@ -29,9 +29,13 @@ export function toTradingViewSymbol(pair: string): string {
 export function TradingViewChart({
   symbol,
   interval = "60",
+  // UTC+06:00 by default (set as requested). India is actually UTC+5:30 —
+  // use "Asia/Kolkata" for exact Indian time, or "Asia/Karachi" for Pakistan.
+  timezone = "Asia/Dhaka",
 }: {
   symbol: string;
   interval?: string;
+  timezone?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +66,7 @@ export function TradingViewChart({
     script.innerHTML = JSON.stringify({
       symbol,
       interval,
-      timezone: "Etc/UTC",
+      timezone,
       theme,
       style: "1",
       locale: "en",
@@ -78,7 +82,7 @@ export function TradingViewChart({
     return () => {
       container.innerHTML = "";
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, timezone]);
 
   return (
     <div ref={containerRef} className="tradingview-widget-container h-full w-full" />
