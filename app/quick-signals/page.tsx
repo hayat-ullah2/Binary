@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Zap,
   ArrowUp,
@@ -10,6 +11,7 @@ import {
   Timer,
   History as HistoryIcon,
   CandlestickChart,
+  ExternalLink,
 } from "lucide-react";
 import {
   TradingViewChart,
@@ -51,7 +53,12 @@ export default function QuickSignalsPage() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [auto, setAuto] = useState(false);
   const [recent, setRecent] = useState<RecentItem[]>([]);
+  // "Take trade at" entry time — a short lead so you can switch to Quotex.
+  const [entryLabel, setEntryLabel] = useState("");
+  const [entryLeft, setEntryLeft] = useState(0);
   const idRef = useRef(0);
+
+  const ENTRY_LEAD = 30; // seconds
 
   const { map: quoteMap, source } = useQuotes();
   const pairLabel = getPair(pair).label;
@@ -69,6 +76,12 @@ export default function QuickSignalsPage() {
       const sig = generateQuickSignal(bias);
       setSignal(sig);
       setSecondsLeft(sec);
+      setEntryLabel(
+        new Date(Date.now() + ENTRY_LEAD * 1000).toLocaleTimeString("en-US", {
+          hour12: false,
+        })
+      );
+      setEntryLeft(ENTRY_LEAD);
       setPhase("result");
       idRef.current += 1;
       setRecent((prev) =>
@@ -95,6 +108,15 @@ export default function QuickSignalsPage() {
     }, 1000);
     return () => clearInterval(id);
   }, [phase, secondsLeft]);
+
+  // Countdown to the "take trade at" entry time.
+  useEffect(() => {
+    if (phase !== "result" || entryLeft <= 0) return;
+    const id = setInterval(() => {
+      setEntryLeft((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase, entryLeft]);
 
   // Auto mode: regenerate shortly after the window closes.
   useEffect(() => {
@@ -223,6 +245,52 @@ export default function QuickSignalsPage() {
                   <span className="text-muted-foreground">Auto-generate</span>
                 </label>
               </div>
+
+              {/* Take-trade-at entry time + open Quotex (manual trade) */}
+              {phase === "result" && signal && (
+                <div className="mt-6 w-full max-w-sm space-y-3">
+                  <div
+                    className={cn(
+                      "rounded-2xl border p-4 text-center",
+                      signal.direction === "BUY"
+                        ? "border-positive/30 bg-positive/10"
+                        : "border-negative/30 bg-negative/10"
+                    )}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+                      Take trade at
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-4xl font-bold tabular-nums",
+                        signal.direction === "BUY"
+                          ? "text-positive"
+                          : "text-negative"
+                      )}
+                    >
+                      {entryLabel}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {entryLeft > 0 ? `in ${entryLeft}s` : "Take the trade now"}
+                    </p>
+                  </div>
+
+                  <Button asChild size="lg" className="w-full">
+                    <Link
+                      href="https://quotex.com/sign-up/?lid=881991"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open Quotex
+                      <ExternalLink className="size-4" />
+                    </Link>
+                  </Button>
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    Broker · Quotex — place the {signal.direction === "BUY" ? "CALL (UP)" : "PUT (DOWN)"} trade
+                    manually when the timer hits.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
