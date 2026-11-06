@@ -29,7 +29,8 @@ import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
   QUICK_TIMEFRAMES,
   QUICK_PAIRS,
-  generateQuickSignal,
+  deterministicQuickSignal,
+  QUICK_WINDOW_MS,
   type QuickSignal,
 } from "@/lib/quick-signal";
 import type { Direction } from "@/types/forex";
@@ -186,32 +187,58 @@ export default function QuickSignalsPage() {
   const generate = useCallback(() => {
     setPhase("analyzing");
     setSignal(null);
-    const bias = quoteMap[pair]?.dayChangePercent ?? 0;
     const sec = seconds;
     const chosen = pair;
-    window.setTimeout(() => {
-      const sig = generateQuickSignal(bias);
-      setSignal(sig);
-      setTradeSeconds(sec);
-      setEntryLeft(ENTRY_LEAD);
-      setPhase("entry");
-      if (voiceRef.current) speakSignal(sig.direction);
-      idRef.current += 1;
-      setRecent((prev) =>
-        [
-          {
-            id: idRef.current,
-            pair: chosen,
-            seconds: sec,
-            direction: sig.direction,
-            confidence: sig.confidence,
-            time: new Date().toLocaleTimeString("en-US", { hour12: false }),
-          },
-          ...prev,
-        ].slice(0, 8)
-      );
-    }, 1300);
-  }, [pair, seconds, quoteMap]);
+    const started = Date.now();
+
+    // Apply the resolved signal, keeping the "analyzing" animation ~1.2s.
+    const apply = (sig: QuickSignal) => {
+      const wait = Math.max(0, 1200 - (Date.now() - started));
+      window.setTimeout(() => {
+        setSignal(sig);
+        setTradeSeconds(sec);
+        setEntryLeft(ENTRY_LEAD);
+        setPhase("entry");
+        if (voiceRef.current) speakSignal(sig.direction);
+        idRef.current += 1;
+        setRecent((prev) =>
+          [
+            {
+              id: idRef.current,
+              pair: chosen,
+              seconds: sec,
+              direction: sig.direction,
+              confidence: sig.confidence,
+              time: new Date().toLocaleTimeString("en-US", { hour12: false }),
+            },
+            ...prev,
+          ].slice(0, 8)
+        );
+      }, wait);
+    };
+
+    // Fetch the shared, server-computed signal so every device sees the SAME
+    // call. Fall back to a deterministic local result only if the API fails.
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/quick-signal?pair=${encodeURIComponent(chosen)}&tf=${sec}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("bad response");
+        const data = (await res.json()) as QuickSignal;
+        apply({ direction: data.direction, confidence: data.confidence });
+      } catch {
+        apply(
+          deterministicQuickSignal(
+            chosen,
+            sec,
+            Math.floor(Date.now() / QUICK_WINDOW_MS)
+          )
+        );
+      }
+    })();
+  }, [pair, seconds]);
 
   // Phase 1 — "take trade in" countdown; when it hits 0 the trade starts.
   useEffect(() => {

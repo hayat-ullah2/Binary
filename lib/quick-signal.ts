@@ -53,3 +53,36 @@ export function generateQuickSignal(biasPercent = 0): QuickSignal {
   const confidence = Math.round(60 + Math.random() * 36);
   return { direction, confidence };
 }
+
+/**
+ * How long one Quick Signal stays valid. The signal is fixed per
+ * pair + timeframe within each window, so EVERY device sees the same call.
+ */
+export const QUICK_WINDOW_MS = 30_000; // 30 seconds
+
+/** Stable FNV-1a hash → unsigned 32-bit int. */
+function hashString(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * DETERMINISTIC signal: a pure function of pair + timeframe + time-window
+ * (bucket). No Math.random, no device clock — so the same inputs produce the
+ * SAME BUY/SELL + confidence on every device and every server instance.
+ * Still illustrative, not trading advice.
+ */
+export function deterministicQuickSignal(
+  pair: string,
+  tf: string | number,
+  bucket: number
+): QuickSignal {
+  const seed = hashString(`${pair}:${tf}:${bucket}`);
+  const direction: Direction = seed % 2 === 0 ? "BUY" : "SELL";
+  const confidence = 60 + (seed % 37); // 60–96, deterministic
+  return { direction, confidence };
+}
