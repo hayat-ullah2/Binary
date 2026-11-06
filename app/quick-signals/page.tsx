@@ -34,7 +34,13 @@ import {
 } from "@/lib/quick-signal";
 import type { Direction } from "@/types/forex";
 
-type Phase = "idle" | "analyzing" | "result";
+type Phase = "idle" | "analyzing" | "entry" | "progress";
+
+function mmss(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 interface RecentItem {
   id: number;
@@ -156,14 +162,14 @@ export default function QuickSignalsPage() {
   }, [voice]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(0); // trade-in-progress (expiry)
+  const [tradeSeconds, setTradeSeconds] = useState(0); // captured expiry (bar total)
+  const [entryLeft, setEntryLeft] = useState(0); // "take trade in" countdown
   const [recent, setRecent] = useState<RecentItem[]>([]);
-  // "Take trade at" entry time — a short lead so you can switch to Quotex.
-  const [entryLabel, setEntryLabel] = useState("");
-  const [entryLeft, setEntryLeft] = useState(0);
   const idRef = useRef(0);
 
-  const ENTRY_LEAD = 30; // seconds
+  const ENTRY_LEAD = 5; // seconds to "take trade in" before the window starts
+  const active = phase === "entry" || phase === "progress";
 
   const { map: quoteMap, source } = useQuotes();
   const pairLabel = getPair(pair).label;
@@ -186,14 +192,9 @@ export default function QuickSignalsPage() {
     window.setTimeout(() => {
       const sig = generateQuickSignal(bias);
       setSignal(sig);
-      setSecondsLeft(sec);
-      setEntryLabel(
-        new Date(Date.now() + ENTRY_LEAD * 1000).toLocaleTimeString("en-US", {
-          hour12: false,
-        })
-      );
+      setTradeSeconds(sec);
       setEntryLeft(ENTRY_LEAD);
-      setPhase("result");
+      setPhase("entry");
       if (voiceRef.current) speakSignal(sig.direction);
       idRef.current += 1;
       setRecent((prev) =>
@@ -212,23 +213,39 @@ export default function QuickSignalsPage() {
     }, 1300);
   }, [pair, seconds, quoteMap]);
 
-  // Countdown while a signal is live.
+  // Phase 1 — "take trade in" countdown; when it hits 0 the trade starts.
   useEffect(() => {
-    if (phase !== "result" || secondsLeft <= 0) return;
+    if (phase !== "entry") return;
+    const id = setInterval(() => {
+      if (entryLeft <= 0) {
+        setPhase("progress");
+        setSecondsLeft(tradeSeconds);
+      } else {
+        setEntryLeft((s) => Math.max(0, s - 1));
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase, entryLeft, tradeSeconds]);
+
+  // Phase 2 — "trade in progress" expiry countdown.
+  useEffect(() => {
+    if (phase !== "progress" || secondsLeft <= 0) return;
     const id = setInterval(() => {
       setSecondsLeft((s) => Math.max(0, s - 1));
     }, 1000);
     return () => clearInterval(id);
   }, [phase, secondsLeft]);
 
-  // Countdown to the "take trade at" entry time.
-  useEffect(() => {
-    if (phase !== "result" || entryLeft <= 0) return;
-    const id = setInterval(() => {
-      setEntryLeft((s) => Math.max(0, s - 1));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [phase, entryLeft]);
+  const ringFraction =
+    phase === "analyzing"
+      ? 1
+      : phase === "entry"
+        ? entryLeft / ENTRY_LEAD
+        : phase === "progress"
+          ? tradeSeconds > 0
+            ? secondsLeft / tradeSeconds
+            : 0
+          : 0;
 
   return (
     <div className="space-y-6">
@@ -369,7 +386,7 @@ export default function QuickSignalsPage() {
               <SignalCircle
                 phase={phase}
                 signal={signal}
-                secondsLeft={secondsLeft}
+                fraction={ringFraction}
                 totalSeconds={seconds}
                 pairLabel={pairLabel}
               />
@@ -389,7 +406,7 @@ export default function QuickSignalsPage() {
                   ) : (
                     <>
                       <Play className="size-4" />
-                      {phase === "result" ? "New signal" : "Generate signal"}
+                      {active ? "New signal" : "Generate signal"}
                     </>
                   )}
                 </Button>
@@ -405,8 +422,8 @@ export default function QuickSignalsPage() {
                 </label>
               </div>
 
-              {/* Take-trade-at entry time + open Quotex (manual trade) */}
-              {phase === "result" && signal && (
+              {/* Two-phase trade box: take-trade-in → trade-in-progress */}
+              {active && signal && (
                 <div className="mt-6 w-full max-w-sm space-y-3">
                   <div
                     className={cn(
@@ -416,27 +433,58 @@ export default function QuickSignalsPage() {
                         : "border-negative/30 bg-negative/10"
                     )}
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-                      Take trade at
-                    </p>
-                    <p
-                      className={cn(
-                        "mt-1 text-4xl font-bold tabular-nums",
-                        signal.direction === "BUY"
-                          ? "text-positive"
-                          : "text-negative"
-                      )}
-                    >
-                      {entryLabel}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {entryLeft > 0 ? `in ${entryLeft}s` : "Take the trade now"}
-                    </p>
+                    {phase === "entry" ? (
+                      <>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+                          Take trade in
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-4xl font-bold tabular-nums",
+                            signal.direction === "BUY"
+                              ? "text-positive"
+                              : "text-negative"
+                          )}
+                        >
+                          {entryLeft}s
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+                          {secondsLeft > 0 ? "Trade in progress" : "Trade window closed"}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-4xl font-bold tabular-nums",
+                            signal.direction === "BUY"
+                              ? "text-positive"
+                              : "text-negative"
+                          )}
+                        >
+                          {mmss(secondsLeft)}
+                        </p>
+                        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-[width] duration-1000 ease-linear",
+                              signal.direction === "BUY"
+                                ? "bg-positive"
+                                : "bg-negative"
+                            )}
+                            style={{
+                              width: `${tradeSeconds > 0 ? (secondsLeft / tradeSeconds) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <p className="text-center text-[11px] text-muted-foreground">
-                    Place the {signal.direction === "BUY" ? "CALL (UP)" : "PUT (DOWN)"} trade
-                    manually when the timer hits.
+                    {phase === "entry"
+                      ? `Get ready — place the ${signal.direction === "BUY" ? "CALL (UP)" : "PUT (DOWN)"} trade when it hits zero.`
+                      : "Trade is running for your selected expiry."}
                   </p>
                 </div>
               )}
@@ -579,13 +627,13 @@ function Chip({
 function SignalCircle({
   phase,
   signal,
-  secondsLeft,
+  fraction,
   totalSeconds,
   pairLabel,
 }: {
   phase: Phase;
   signal: QuickSignal | null;
-  secondsLeft: number;
+  fraction: number;
   totalSeconds: number;
   pairLabel: string;
 }) {
@@ -595,30 +643,22 @@ function SignalCircle({
   const trackR = 104;
   const circ = 2 * Math.PI * trackR;
 
-  const fraction =
-    phase === "result"
-      ? secondsLeft / totalSeconds
-      : phase === "analyzing"
-        ? 1
-        : 0;
+  const active = phase === "entry" || phase === "progress";
   const offset = circ * (1 - fraction);
 
   const isBuy = signal?.direction === "BUY";
-  const ringColor =
-    phase === "result"
-      ? isBuy
-        ? "var(--positive)"
-        : "var(--negative)"
-      : "var(--primary)";
-  const expired = phase === "result" && secondsLeft <= 0;
+  const ringColor = active
+    ? isBuy
+      ? "var(--positive)"
+      : "var(--negative)"
+    : "var(--primary)";
 
   // Glow / pulse tone follows the state.
-  const glowClass =
-    phase === "result"
-      ? isBuy
-        ? "bg-positive/25"
-        : "bg-negative/25"
-      : "bg-primary/20";
+  const glowClass = active
+    ? isBuy
+      ? "bg-positive/25"
+      : "bg-negative/25"
+    : "bg-primary/20";
 
   const TICKS = 56;
 
@@ -739,7 +779,7 @@ function SignalCircle({
           </>
         )}
 
-        {phase === "result" && signal && (
+        {active && signal && (
           <>
             <span
               className={cn(
@@ -759,7 +799,7 @@ function SignalCircle({
                 isBuy ? "text-positive" : "text-negative"
               )}
             >
-              {signal.direction}
+              {isBuy ? "CALL" : "PUT"}
             </p>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {isBuy ? "Higher ▲" : "Lower ▼"}
@@ -769,14 +809,6 @@ function SignalCircle({
                 {signal.confidence}%
               </span>{" "}
               <span className="text-muted-foreground">confidence</span>
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-xs font-medium tabular-nums",
-                expired ? "text-muted-foreground" : "text-foreground"
-              )}
-            >
-              {expired ? "Window closed" : `${secondsLeft}s remaining`}
             </p>
           </>
         )}
