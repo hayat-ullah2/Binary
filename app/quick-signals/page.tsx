@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   Zap,
   ArrowUp,
@@ -11,7 +10,6 @@ import {
   Timer,
   History as HistoryIcon,
   CandlestickChart,
-  ExternalLink,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -159,7 +157,6 @@ export default function QuickSignalsPage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [auto, setAuto] = useState(false);
   const [recent, setRecent] = useState<RecentItem[]>([]);
   // "Take trade at" entry time — a short lead so you can switch to Quotex.
   const [entryLabel, setEntryLabel] = useState("");
@@ -232,13 +229,6 @@ export default function QuickSignalsPage() {
     }, 1000);
     return () => clearInterval(id);
   }, [phase, entryLeft]);
-
-  // Auto mode: regenerate shortly after the window closes.
-  useEffect(() => {
-    if (!auto || phase !== "result" || secondsLeft > 0) return;
-    const t = setTimeout(() => generate(), 1800);
-    return () => clearTimeout(t);
-  }, [auto, phase, secondsLeft, generate]);
 
   return (
     <div className="space-y-6">
@@ -405,11 +395,6 @@ export default function QuickSignalsPage() {
                 </Button>
 
                 <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                  <Switch checked={auto} onCheckedChange={setAuto} />
-                  <span className="text-muted-foreground">Auto-generate</span>
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                   <Switch checked={voice} onCheckedChange={setVoice} />
                   {voice ? (
                     <Volume2 className="size-4 text-primary" />
@@ -449,18 +434,8 @@ export default function QuickSignalsPage() {
                     </p>
                   </div>
 
-                  <Button asChild size="lg" className="w-full">
-                    <Link
-                      href="https://quotex.com/sign-up/?lid=881991"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open Quotex
-                      <ExternalLink className="size-4" />
-                    </Link>
-                  </Button>
                   <p className="text-center text-[11px] text-muted-foreground">
-                    Broker · Quotex — place the {signal.direction === "BUY" ? "CALL (UP)" : "PUT (DOWN)"} trade
+                    Place the {signal.direction === "BUY" ? "CALL (UP)" : "PUT (DOWN)"} trade
                     manually when the timer hits.
                   </p>
                 </div>
