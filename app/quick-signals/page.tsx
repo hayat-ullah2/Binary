@@ -12,6 +12,8 @@ import {
   History as HistoryIcon,
   CandlestickChart,
   ExternalLink,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   TradingViewChart,
@@ -45,10 +47,44 @@ interface RecentItem {
   time: string;
 }
 
+// Motivational voice lines spoken (browser text-to-speech) on a new signal.
+const BUY_LINES = [
+  "Strong buy signal! Ride the momentum and aim higher.",
+  "Bulls are in control. Stay confident and go up!",
+  "Buy confirmed. Trust your plan and trade with discipline.",
+  "Upward momentum detected. This is your moment — go up!",
+];
+const SELL_LINES = [
+  "Strong sell signal! The trend is heading down.",
+  "Bears are taking over. Follow the move and go lower!",
+  "Sell confirmed. Stay sharp and trade the trend.",
+  "Downward pressure detected. Stay focused and go down!",
+];
+
+function speakSignal(direction: Direction) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const lines = direction === "BUY" ? BUY_LINES : SELL_LINES;
+  const text = lines[Math.floor(Math.random() * lines.length)];
+  try {
+    window.speechSynthesis.cancel(); // interrupt any ongoing speech
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  } catch {
+    /* speech not available — ignore */
+  }
+}
+
 export default function QuickSignalsPage() {
   const [seconds, setSeconds] = useState(30);
   const [pair, setPair] = useState("EURUSD");
   const [mode, setMode] = useState<"OTC" | "LIVE">("OTC");
+  const [voice, setVoice] = useState(true);
+  const voiceRef = useRef(voice);
+  useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -90,6 +126,7 @@ export default function QuickSignalsPage() {
       );
       setEntryLeft(ENTRY_LEAD);
       setPhase("result");
+      if (voiceRef.current) speakSignal(sig.direction);
       idRef.current += 1;
       setRecent((prev) =>
         [
@@ -299,6 +336,16 @@ export default function QuickSignalsPage() {
                 <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                   <Switch checked={auto} onCheckedChange={setAuto} />
                   <span className="text-muted-foreground">Auto-generate</span>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                  <Switch checked={voice} onCheckedChange={setVoice} />
+                  {voice ? (
+                    <Volume2 className="size-4 text-primary" />
+                  ) : (
+                    <VolumeX className="size-4 text-muted-foreground" />
+                  )}
+                  <span className="text-muted-foreground">Voice</span>
                 </label>
               </div>
 
