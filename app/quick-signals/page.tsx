@@ -48,6 +48,7 @@ interface RecentItem {
 export default function QuickSignalsPage() {
   const [seconds, setSeconds] = useState(30);
   const [pair, setPair] = useState("EURUSD");
+  const [mode, setMode] = useState<"OTC" | "LIVE">("OTC");
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -65,6 +66,12 @@ export default function QuickSignalsPage() {
   const decimals = getPair(pair).decimals;
   const quote = quoteMap[pair];
   const mid = quote ? (quote.bid + quote.ask) / 2 : null;
+
+  // Live markets can't trade sub-minute, so LIVE mode snaps the expiry to 1m.
+  function changeMode(next: "OTC" | "LIVE") {
+    setMode(next);
+    if (next === "LIVE" && seconds < 60) setSeconds(60);
+  }
 
   const generate = useCallback(() => {
     setPhase("analyzing");
@@ -139,6 +146,54 @@ export default function QuickSignalsPage() {
           {/* soft top glow */}
           <div className="pointer-events-none absolute -top-24 left-1/2 size-64 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
           <CardContent className="relative space-y-5 p-5">
+            {/* Market mode */}
+            <div className="rounded-xl border border-border bg-surface/60 p-3">
+              <div className="mb-2.5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Market mode
+                </p>
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-positive">
+                  <span className="size-1.5 rounded-full bg-positive" />
+                  {mode === "OTC" ? "24/7 · Synthetic" : "Live market"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { key: "OTC" as const, sub: "5s → 1m" },
+                    { key: "LIVE" as const, sub: "1m" },
+                  ]
+                ).map((m) => {
+                  const active = mode === m.key;
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => changeMode(m.key)}
+                      aria-pressed={active}
+                      className={cn(
+                        "flex flex-col items-center rounded-xl border px-3 py-2.5 transition-colors",
+                        active
+                          ? "border-primary bg-primary-muted text-primary"
+                          : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground"
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5 text-sm font-semibold">
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            active ? "bg-primary" : "bg-muted-foreground"
+                          )}
+                        />
+                        {m.key}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{m.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Selected pair status */}
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface/60 p-3">
               <div className="flex items-center gap-2.5">
@@ -184,6 +239,7 @@ export default function QuickSignalsPage() {
                   <Chip
                     key={tf.seconds}
                     active={seconds === tf.seconds}
+                    disabled={mode === "LIVE" && tf.seconds < 60}
                     onClick={() => setSeconds(tf.seconds)}
                   >
                     {tf.label}
@@ -401,19 +457,22 @@ export default function QuickSignalsPage() {
 function Chip({
   active,
   onClick,
+  disabled = false,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
         active
           ? "border-primary bg-primary text-primary-foreground shadow-sm"
           : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground"
