@@ -302,8 +302,8 @@ export default function QuickSignalsPage() {
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    { key: "OTC" as const, sub: "5s → 1m" },
-                    { key: "LIVE" as const, sub: "1m" },
+                    { key: "OTC" as const, sub: "5s → 15m" },
+                    { key: "LIVE" as const, sub: "1m → 15m" },
                   ]
                 ).map((m) => {
                   const active = mode === m.key;

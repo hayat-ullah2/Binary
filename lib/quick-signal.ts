@@ -21,6 +21,10 @@ export const QUICK_TIMEFRAMES: QuickTimeframe[] = [
   { seconds: 40, label: "40s" },
   { seconds: 50, label: "50s" },
   { seconds: 60, label: "1m" },
+  { seconds: 120, label: "2m" },
+  { seconds: 180, label: "3m" },
+  { seconds: 300, label: "5m" },
+  { seconds: 900, label: "15m" },
 ];
 
 /** Pairs offered on the quick-signal board (majors + gold). */
