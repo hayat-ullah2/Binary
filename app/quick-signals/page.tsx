@@ -30,7 +30,7 @@ import {
   QUICK_TIMEFRAMES,
   QUICK_PAIRS,
   deterministicQuickSignal,
-  QUICK_WINDOW_MS,
+  quickWindowMs,
   type QuickSignal,
 } from "@/lib/quick-signal";
 import type { Direction } from "@/types/forex";
@@ -233,7 +233,7 @@ export default function QuickSignalsPage() {
           deterministicQuickSignal(
             chosen,
             sec,
-            Math.floor(Date.now() / QUICK_WINDOW_MS)
+            Math.floor(Date.now() / quickWindowMs(sec))
           )
         );
       }

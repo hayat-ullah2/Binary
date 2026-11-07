@@ -59,10 +59,14 @@ export function generateQuickSignal(biasPercent = 0): QuickSignal {
 }
 
 /**
- * How long one Quick Signal stays valid. The signal is fixed per
- * pair + timeframe within each window, so EVERY device sees the same call.
+ * How long one Quick Signal stays valid, aligned to the clock. Tied to the
+ * timeframe (minimum 60s) so the signal is stable for the whole candle/minute —
+ * every device within the same window sees the same call, and boundary flips
+ * are rare (they only happen exactly on a minute/candle edge).
  */
-export const QUICK_WINDOW_MS = 30_000; // 30 seconds
+export function quickWindowMs(tfSeconds: number): number {
+  return Math.max(60_000, Math.round(tfSeconds) * 1000);
+}
 
 /** Stable FNV-1a hash → unsigned 32-bit int. */
 function hashString(str: string): number {

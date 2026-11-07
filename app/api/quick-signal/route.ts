@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deterministicQuickSignal, QUICK_WINDOW_MS } from "@/lib/quick-signal";
+import { deterministicQuickSignal, quickWindowMs } from "@/lib/quick-signal";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +14,12 @@ export async function GET(req: Request) {
   const pair = (searchParams.get("pair") ?? "EURUSD").toUpperCase();
   const tf = searchParams.get("tf") ?? "30";
 
+  const tfSeconds = Number(tf) || 60;
+  const windowMs = quickWindowMs(tfSeconds);
   const now = Date.now(); // server clock — shared across all callers
-  const bucket = Math.floor(now / QUICK_WINDOW_MS);
-  const signal = deterministicQuickSignal(pair, tf, bucket);
-  const nextAt = (bucket + 1) * QUICK_WINDOW_MS;
+  const bucket = Math.floor(now / windowMs);
+  const signal = deterministicQuickSignal(pair, String(tfSeconds), bucket);
+  const nextAt = (bucket + 1) * windowMs;
 
   return NextResponse.json({
     ...signal,
