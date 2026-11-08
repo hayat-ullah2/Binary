@@ -7,8 +7,11 @@ import {
   type QuickSignal,
 } from "@/lib/quick-signal";
 import { fetchQuickCandles } from "@/lib/twelve-data";
+import { fetchTradingViewRating } from "@/lib/tradingview-rating";
 
 export const dynamic = "force-dynamic";
+
+type Source = "tradingview" | "live" | "illustrative";
 
 /**
  * Current Quick Signal for a pair + timeframe.
@@ -20,7 +23,7 @@ export const dynamic = "force-dynamic";
  * Always illustrative — not financial advice.
  */
 
-const cache = new Map<string, { at: number; signal: QuickSignal }>();
+const cache = new Map<string, { at: number; signal: QuickSignal; source: Source }>();
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -39,28 +42,39 @@ export async function GET(req: Request) {
     return NextResponse.json({ ...signal, ...base, source: "illustrative" });
   }
 
-  // 1m+ → real analysis of live candles, cached per window.
+  // 1m+ → TradingView rating → Twelve Data analysis → deterministic, cached
+  // per window so every device shares the same call.
   const key = `${pair}:${tfSeconds}:${bucket}`;
   const hit = cache.get(key);
   if (hit) {
-    return NextResponse.json({ ...hit.signal, ...base, source: "live", cached: true });
+    return NextResponse.json({ ...hit.signal, ...base, source: hit.source, cached: true });
   }
 
+  // 1) TradingView's own technical-analysis rating (unofficial, may fail).
+  const tv = await fetchTradingViewRating(pair, tfSeconds);
+  if (tv) {
+    cache.set(key, { at: now, signal: tv, source: "tradingview" });
+    pruneCache(now);
+    return NextResponse.json({ ...tv, ...base, source: "tradingview" });
+  }
+
+  // 2) Fallback: our own analysis of live Twelve Data candles.
   try {
     const candles = await fetchQuickCandles(pair, intervalForExpiry(tfSeconds), 60);
-    // Drop the last (possibly still-forming) candle for a stable close series.
-    const closes = candles.slice(0, -1).map((c) => c.close);
+    const closes = candles.slice(0, -1).map((c) => c.close); // drop forming candle
     const signal = analyzeQuickCandles(closes);
-    if (!signal) throw new Error("insufficient candles");
-    cache.set(key, { at: now, signal });
-    pruneCache(now);
-    return NextResponse.json({ ...signal, ...base, source: "live" });
+    if (signal) {
+      cache.set(key, { at: now, signal, source: "live" });
+      pruneCache(now);
+      return NextResponse.json({ ...signal, ...base, source: "live" });
+    }
   } catch {
-    // Live feed / rate-limit failure → deterministic fallback (not cached, so
-    // the next request can retry the live feed).
-    const signal = deterministicQuickSignal(pair, String(tfSeconds), bucket);
-    return NextResponse.json({ ...signal, ...base, source: "illustrative" });
+    /* fall through to deterministic */
   }
+
+  // 3) Final fallback: deterministic (not cached, so the next call can retry).
+  const signal = deterministicQuickSignal(pair, String(tfSeconds), bucket);
+  return NextResponse.json({ ...signal, ...base, source: "illustrative" });
 }
 
 function pruneCache(now: number) {

@@ -163,7 +163,9 @@ export default function QuickSignalsPage() {
   }, [voice]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
-  const [signalSource, setSignalSource] = useState<"live" | "illustrative" | null>(null);
+  const [signalSource, setSignalSource] = useState<
+    "tradingview" | "live" | "illustrative" | null
+  >(null);
   const [secondsLeft, setSecondsLeft] = useState(0); // trade-in-progress (expiry)
   const [tradeSeconds, setTradeSeconds] = useState(0); // captured expiry (bar total)
   const [entryLeft, setEntryLeft] = useState(0); // "take trade in" countdown
@@ -193,7 +195,10 @@ export default function QuickSignalsPage() {
     const started = Date.now();
 
     // Apply the resolved signal, keeping the "analyzing" animation ~1.2s.
-    const apply = (sig: QuickSignal, src: "live" | "illustrative") => {
+    const apply = (
+      sig: QuickSignal,
+      src: "tradingview" | "live" | "illustrative"
+    ) => {
       const wait = Math.max(0, 1200 - (Date.now() - started));
       window.setTimeout(() => {
         setSignal(sig);
@@ -229,10 +234,13 @@ export default function QuickSignalsPage() {
         );
         if (!res.ok) throw new Error("bad response");
         const data = (await res.json()) as QuickSignal & { source?: string };
-        apply(
-          { direction: data.direction, confidence: data.confidence },
-          data.source === "live" ? "live" : "illustrative"
-        );
+        const src =
+          data.source === "tradingview"
+            ? "tradingview"
+            : data.source === "live"
+              ? "live"
+              : "illustrative";
+        apply({ direction: data.direction, confidence: data.confidence }, src);
       } catch {
         apply(
           deterministicQuickSignal(
@@ -428,20 +436,28 @@ export default function QuickSignalsPage() {
                 <span
                   className={cn(
                     "mt-4 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
-                    signalSource === "live"
-                      ? "border-positive/30 bg-positive/10 text-positive"
-                      : "border-border bg-surface text-muted-foreground"
+                    signalSource === "tradingview"
+                      ? "border-accent/40 bg-accent/10 text-accent"
+                      : signalSource === "live"
+                        ? "border-positive/30 bg-positive/10 text-positive"
+                        : "border-border bg-surface text-muted-foreground"
                   )}
                 >
                   <span
                     className={cn(
                       "size-1.5 rounded-full",
-                      signalSource === "live" ? "bg-positive" : "bg-muted-foreground"
+                      signalSource === "tradingview"
+                        ? "bg-accent"
+                        : signalSource === "live"
+                          ? "bg-positive"
+                          : "bg-muted-foreground"
                     )}
                   />
-                  {signalSource === "live"
-                    ? "Live market analysis"
-                    : "Illustrative signal"}
+                  {signalSource === "tradingview"
+                    ? "TradingView rating"
+                    : signalSource === "live"
+                      ? "Live market analysis"
+                      : "Illustrative signal"}
                 </span>
               )}
 
