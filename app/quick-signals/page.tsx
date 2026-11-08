@@ -12,6 +12,7 @@ import {
   CandlestickChart,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import {
   TradingViewChart,
@@ -33,7 +34,7 @@ import {
   quickWindowMs,
   type QuickSignal,
 } from "@/lib/quick-signal";
-import type { Direction } from "@/types/forex";
+import type { Direction, Quote } from "@/types/forex";
 
 type Phase = "idle" | "analyzing" | "entry" | "progress";
 
@@ -166,6 +167,7 @@ export default function QuickSignalsPage() {
   const [signalSource, setSignalSource] = useState<
     "tradingview" | "live" | "illustrative" | null
   >(null);
+  const [ticketOpen, setTicketOpen] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(0); // trade-in-progress (expiry)
   const [tradeSeconds, setTradeSeconds] = useState(0); // captured expiry (bar total)
   const [entryLeft, setEntryLeft] = useState(0); // "take trade in" countdown
@@ -203,6 +205,7 @@ export default function QuickSignalsPage() {
       window.setTimeout(() => {
         setSignal(sig);
         setSignalSource(src);
+        setTicketOpen(true);
         setTradeSeconds(sec);
         setEntryLeft(ENTRY_LEAD);
         setPhase("entry");
@@ -654,8 +657,16 @@ export default function QuickSignalsPage() {
           <span className="text-xs text-muted-foreground">1-minute candles</span>
         </CardHeader>
         <CardContent className="p-1 sm:p-2">
-          <div className="h-[46vh] min-h-[320px] w-full overflow-hidden rounded-lg">
+          <div className="relative h-[46vh] min-h-[320px] w-full overflow-hidden rounded-lg">
             <TradingViewChart symbol={toTradingViewSymbol(pair)} interval="1" />
+            {active && signal && ticketOpen && (
+              <ChartTicket
+                pair={pair}
+                direction={signal.direction}
+                quote={quote}
+                onClose={() => setTicketOpen(false)}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -691,6 +702,100 @@ function Chip({
     >
       {children}
     </button>
+  );
+}
+
+/** Broker-style trade ticket overlaid on the chart when a signal is live. */
+function ChartTicket({
+  pair,
+  direction,
+  quote,
+  onClose,
+}: {
+  pair: string;
+  direction: Direction;
+  quote: Quote | undefined;
+  onClose: () => void;
+}) {
+  const meta = getPair(pair);
+  const dec = meta.decimals;
+  const pip = meta.pipSize;
+  const bid = quote?.bid ?? null;
+  const ask = quote?.ask ?? null;
+  const mid = bid !== null && ask !== null ? (bid + ask) / 2 : null;
+  const isBuy = direction === "BUY";
+  const entry = isBuy ? (ask ?? mid) : (bid ?? mid);
+  const sl = entry !== null ? (isBuy ? entry - 20 * pip : entry + 20 * pip) : null;
+  const tp = entry !== null ? (isBuy ? entry + 40 * pip : entry - 40 * pip) : null;
+  const fmt = (v: number | null) => (v === null ? "—" : v.toFixed(dec));
+
+  return (
+    <div className="absolute left-2 top-2 z-10 w-[220px] max-w-[72%] rounded-xl border border-border bg-background/95 p-3 shadow-2xl backdrop-blur-sm sm:left-3 sm:top-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className={cn("size-1.5 rounded-full", isBuy ? "bg-positive" : "bg-negative")} />
+          Signal ticket
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close ticket"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div
+          className={cn(
+            "rounded-lg border px-2 py-1.5",
+            !isBuy ? "border-negative/60 bg-negative/10" : "border-border bg-surface"
+          )}
+        >
+          <p className="text-[10px] font-semibold text-negative">Sell</p>
+          <p className="text-sm font-bold tabular-nums text-foreground">{fmt(bid)}</p>
+        </div>
+        <div
+          className={cn(
+            "rounded-lg border px-2 py-1.5",
+            isBuy ? "border-positive/60 bg-positive/10" : "border-border bg-surface"
+          )}
+        >
+          <p className="text-[10px] font-semibold text-positive">Buy</p>
+          <p className="text-sm font-bold tabular-nums text-foreground">{fmt(ask)}</p>
+        </div>
+      </div>
+
+      <dl className="mt-2.5 space-y-1.5 text-xs">
+        <div className="flex items-center justify-between">
+          <dt className="text-muted-foreground">Amount</dt>
+          <dd className="font-semibold tabular-nums text-foreground">0.01 lot</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="text-muted-foreground">Stop loss</dt>
+          <dd className="font-semibold tabular-nums text-negative">{fmt(sl)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="text-muted-foreground">Take profit</dt>
+          <dd className="font-semibold tabular-nums text-positive">{fmt(tp)}</dd>
+        </div>
+      </dl>
+
+      <button
+        type="button"
+        onClick={onClose}
+        className={cn(
+          "mt-3 w-full rounded-lg py-2 text-xs font-semibold text-white transition-[filter] hover:brightness-110",
+          isBuy ? "bg-positive" : "bg-negative"
+        )}
+      >
+        {isBuy ? "Buy" : "Sell"} {meta.label} @ {fmt(entry)}
+      </button>
+      <p className="mt-1.5 text-center text-[9px] text-muted-foreground">
+        Illustrative — place the trade manually on your broker
+      </p>
+    </div>
   );
 }
 
