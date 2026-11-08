@@ -1,4 +1,5 @@
 import type { Direction } from "@/types/forex";
+import { ema, rsi, macd, last } from "@/lib/indicators";
 
 /**
  * Quotex-style short-expiry ("turbo") signal helper.
@@ -92,5 +93,44 @@ export function deterministicQuickSignal(
   const seed = hashString(`${pair}:${tf}:${bucket}`);
   const direction: Direction = seed % 2 === 0 ? "BUY" : "SELL";
   const confidence = 60 + (seed % 37); // 60–96, deterministic
+  return { direction, confidence };
+}
+
+/** Quick-expiry seconds → a Twelve Data candle interval for live analysis. */
+export function intervalForExpiry(tfSeconds: number): string {
+  if (tfSeconds >= 900) return "15min";
+  if (tfSeconds >= 300) return "5min";
+  return "1min"; // 1m, 2m, 3m
+}
+
+/**
+ * REAL analysis of live candles (EMA 9/21 trend + RSI & MACD confirmations).
+ * Always returns a BUY/SELL (no "no-trade"): direction follows the EMA trend,
+ * confidence rises with each confirming indicator + trend strength. It is a
+ * pure function of the (closed) candle closes, so every device analysing the
+ * same candles gets the same call. Still illustrative, not advice.
+ */
+export function analyzeQuickCandles(closes: number[]): QuickSignal | null {
+  if (closes.length < 25) return null; // not enough data to analyse
+
+  const f = last(ema(closes, 9));
+  const s = last(ema(closes, 21));
+  const r = last(rsi(closes, 14));
+  const h = last(macd(closes).histogram);
+  if ([f, s, r, h].some((v) => !Number.isFinite(v))) return null;
+
+  const direction: Direction = f >= s ? "BUY" : "SELL";
+  const rsiAgree = direction === "BUY" ? r >= 50 : r < 50;
+  const macdAgree = direction === "BUY" ? h >= 0 : h < 0;
+
+  // Trend strength = EMA separation relative to price (capped).
+  const sep = s !== 0 ? Math.abs(f - s) / Math.abs(s) : 0;
+  const trend = Math.min(14, sep * 4000); // ~0–14
+
+  let confidence = 60 + trend;
+  if (rsiAgree) confidence += 8;
+  if (macdAgree) confidence += 8;
+  confidence = Math.round(Math.max(60, Math.min(96, confidence)));
+
   return { direction, confidence };
 }

@@ -175,6 +175,31 @@ export async function fetchTimeSeries(
 }
 
 /**
+ * Fetch candles for a RAW Twelve Data interval string (e.g. "1min", "5min",
+ * "15min") — used by Quick Signals whose expiries don't map to the app's
+ * chart-timeframe enum. Oldest → newest.
+ */
+export async function fetchQuickCandles(
+  symbol: string,
+  interval: string,
+  outputsize = 60
+): Promise<TdCandle[]> {
+  const raw = await tdFetch<TdTimeSeriesRaw>("time_series", {
+    symbol: toTdSymbol(symbol),
+    interval,
+    outputsize: String(outputsize),
+    order: "ASC",
+  });
+  return (raw.values ?? []).map((v) => ({
+    time: new Date(v.datetime.replace(" ", "T") + "Z").toISOString(),
+    open: num(v.open),
+    high: num(v.high),
+    low: num(v.low),
+    close: num(v.close),
+  }));
+}
+
+/**
  * Convert a Twelve Data quote into our app's Quote shape. Twelve Data's free
  * tier doesn't expose bid/ask, so we synthesize them from the mid price using
  * a conventional spread per instrument. Sparkline is optional (from candles).
