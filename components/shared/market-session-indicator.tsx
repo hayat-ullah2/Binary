@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, APP_TIMEZONE, APP_TZ_LABEL } from "@/lib/utils";
 import { MARKET_NOW, MARKET_SESSIONS, sessionIsOpen } from "@/lib/mock-data";
 
 /**
@@ -110,9 +110,9 @@ export function MarketSessionIndicator({
         {now.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
-          timeZone: "UTC",
+          timeZone: APP_TIMEZONE,
         })}{" "}
-        UTC
+        {APP_TZ_LABEL}
       </span>
     </div>
   );

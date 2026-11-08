@@ -10,7 +10,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { cn, formatPrice, formatSigned, formatPercent } from "@/lib/utils";
+import {
+  cn,
+  formatPrice,
+  formatSigned,
+  formatPercent,
+  APP_TIMEZONE,
+} from "@/lib/utils";
 import { getPair, QUOTE_MAP, TIMEFRAMES } from "@/lib/mock-data";
 import { useCandles } from "@/lib/hooks/use-candles";
 import { CurrencyPairBadge } from "./currency-pair-badge";
@@ -43,6 +49,7 @@ export function PriceChart({
       label: new Date(c.time).toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: APP_TIMEZONE,
       }),
     }));
   }, [candles]);

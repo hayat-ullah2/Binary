@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, APP_TIMEZONE, APP_TZ_LABEL } from "@/lib/utils";
 import { getPair } from "@/lib/mock-data";
 import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
@@ -37,10 +37,6 @@ import {
 import type { Direction, Quote } from "@/types/forex";
 
 type Phase = "idle" | "analyzing" | "entry" | "progress";
-
-// Fixed display timezone so signal times match the chart (UTC+6) and are the
-// same on every device — not the viewer's local clock.
-const SIGNAL_TZ = "Asia/Dhaka"; // UTC+06:00
 
 function mmss(total: number): string {
   const m = Math.floor(total / 60);
@@ -225,7 +221,7 @@ export default function QuickSignalsPage() {
               confidence: sig.confidence,
               time: new Date().toLocaleTimeString("en-US", {
                 hour12: false,
-                timeZone: SIGNAL_TZ,
+                timeZone: APP_TIMEZONE,
               }),
             },
             ...prev,
@@ -581,7 +577,7 @@ export default function QuickSignalsPage() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-medium text-muted-foreground">
-                Times UTC+6
+                Times {APP_TZ_LABEL}
               </span>
               {recent.length > 0 && (
                 <Badge variant="secondary" className="tabular-nums">

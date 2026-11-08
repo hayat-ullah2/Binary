@@ -62,11 +62,20 @@ export function formatDate(iso: string): string {
   });
 }
 
+/**
+ * App-wide display timezone (UTC+6, Bangladesh / Asia-Dhaka). Change these two
+ * lines to retime the entire app — clocks, signal times, chart and axes all
+ * read from here. ("Asia/Kolkata" = India UTC+5:30, "Asia/Karachi" = UTC+5.)
+ */
+export const APP_TIMEZONE = "Asia/Dhaka";
+export const APP_TZ_LABEL = "UTC+6";
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: APP_TIMEZONE,
   });
 }

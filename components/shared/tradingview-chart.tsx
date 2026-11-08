@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { APP_TIMEZONE } from "@/lib/utils";
 
 /** App pair symbol → TradingView symbol (gold uses OANDA's spot feed). */
 const TV_SYMBOLS: Record<string, string> = {
@@ -29,9 +30,8 @@ export function toTradingViewSymbol(pair: string): string {
 export function TradingViewChart({
   symbol,
   interval = "60",
-  // UTC+06:00 by default (set as requested). India is actually UTC+5:30 —
-  // use "Asia/Kolkata" for exact Indian time, or "Asia/Karachi" for Pakistan.
-  timezone = "Asia/Dhaka",
+  // Shared app timezone (UTC+6) — change it in lib/utils APP_TIMEZONE.
+  timezone = APP_TIMEZONE,
 }: {
   symbol: string;
   interval?: string;
