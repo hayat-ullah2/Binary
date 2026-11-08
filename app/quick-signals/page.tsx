@@ -38,6 +38,10 @@ import type { Direction, Quote } from "@/types/forex";
 
 type Phase = "idle" | "analyzing" | "entry" | "progress";
 
+// Fixed display timezone so signal times match the chart (UTC+6) and are the
+// same on every device — not the viewer's local clock.
+const SIGNAL_TZ = "Asia/Dhaka"; // UTC+06:00
+
 function mmss(total: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
@@ -219,7 +223,10 @@ export default function QuickSignalsPage() {
               seconds: sec,
               direction: sig.direction,
               confidence: sig.confidence,
-              time: new Date().toLocaleTimeString("en-US", { hour12: false }),
+              time: new Date().toLocaleTimeString("en-US", {
+                hour12: false,
+                timeZone: SIGNAL_TZ,
+              }),
             },
             ...prev,
           ].slice(0, 8)
@@ -572,11 +579,16 @@ export default function QuickSignalsPage() {
               <HistoryIcon className="size-4 text-muted-foreground" />
               Recent signals
             </CardTitle>
-            {recent.length > 0 && (
-              <Badge variant="secondary" className="tabular-nums">
-                {recent.length}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Times UTC+6
+              </span>
+              {recent.length > 0 && (
+                <Badge variant="secondary" className="tabular-nums">
+                  {recent.length}
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {recent.length === 0 ? (
