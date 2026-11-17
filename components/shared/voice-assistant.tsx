@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Phone, PhoneOff, Mic, Loader2, Bot, User } from "lucide-react";
+import { Phone, PhoneOff, Mic, Pause, Loader2, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { speakUrdu } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
@@ -78,13 +78,19 @@ export function VoiceAssistant({
   const [open, setOpen] = useState(false);
   // Resolved once on first render; only read after the user opens the call
   // (client-side), so the server/client difference never reaches the DOM.
-  const [supported, setSupported] = useState(() => getRecognitionCtor() !== null);
+  const [supported] = useState(() => getRecognitionCtor() !== null);
+  const [live, setLive] = useState(false); // hands-free loop running (not paused)
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [interim, setInterim] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveRef = useRef(false);
+  const handleUserTextRef = useRef<((t: string) => void) | null>(null);
+  const beginListeningRef = useRef<(() => void) | null>(null);
   const contextRef = useRef(context);
   const messagesRef = useRef<Msg[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -94,15 +100,84 @@ export function VoiceAssistant({
   }, [context]);
   useEffect(() => {
     messagesRef.current = messages;
-    // keep the transcript scrolled to the latest line
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, interim, thinking]);
+  }, [messages, interim, thinking, speaking]);
 
-  const sendToAI = useCallback(
+  const goLive = useCallback((v: boolean) => {
+    liveRef.current = v;
+    setLive(v);
+  }, []);
+
+  // Open the mic for one user turn. On a clean end it hands the final text to
+  // the AI; if nothing was said (and the call is still live) it keeps waiting.
+  const beginListening = useCallback(() => {
+    if (!liveRef.current) return;
+    const Ctor = getRecognitionCtor();
+    if (!Ctor) return;
+    try {
+      window.speechSynthesis?.cancel(); // never listen while the AI is talking
+    } catch {
+      /* ignore */
+    }
+    const rec = new Ctor();
+    rec.lang = "ur-PK";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    let finalText = "";
+    let fatal = false;
+    rec.onresult = (e) => {
+      let interimText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interimText += r[0].transcript;
+      }
+      setInterim(interimText);
+    };
+    rec.onerror = (ev) => {
+      // Mic permission denied is fatal; 'no-speech'/'aborted' are normal.
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        fatal = true;
+      }
+    };
+    rec.onend = () => {
+      setListening(false);
+      setInterim("");
+      if (fatal) {
+        goLive(false);
+        return;
+      }
+      const t = finalText.trim();
+      if (t) {
+        handleUserTextRef.current?.(t);
+      } else if (liveRef.current) {
+        // silence — keep the line open and listen again shortly
+        restartTimerRef.current = setTimeout(
+          () => beginListeningRef.current?.(),
+          400
+        );
+      }
+    };
+    recognitionRef.current = rec;
+    setListening(true);
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
+  }, [goLive]);
+
+  useEffect(() => {
+    beginListeningRef.current = beginListening;
+  }, [beginListening]);
+
+  const handleUserText = useCallback(
     async (text: string) => {
       const userMsg: Msg = { role: "user", text };
       setMessages((prev) => [...prev, userMsg]);
       setThinking(true);
+      let reply = "معاف کیجیے، دوبارہ کوشش کریں۔";
       try {
         const history = [...messagesRef.current, userMsg]
           .slice(-8)
@@ -117,86 +192,47 @@ export function VoiceAssistant({
           }),
         });
         const data = (await res.json()) as { reply?: string };
-        const reply = data.reply?.trim() || "معاف کیجیے، دوبارہ کوشش کریں۔";
-        setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
-        speakUrdu(reply);
+        if (data.reply?.trim()) reply = data.reply.trim();
       } catch {
-        const reply = "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔";
-        setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
-        speakUrdu(reply);
-      } finally {
-        setThinking(false);
+        reply = "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔";
       }
+      setThinking(false);
+      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+      setSpeaking(true);
+      speakUrdu(reply, {
+        onEnd: () => {
+          setSpeaking(false);
+          // Hands-free: resume listening automatically after the AI finishes.
+          if (liveRef.current)
+            restartTimerRef.current = setTimeout(() => beginListening(), 200);
+        },
+      });
     },
-    [userName]
+    [userName, beginListening]
   );
 
-  const startListening = useCallback(() => {
-    const Ctor = getRecognitionCtor();
-    if (!Ctor) {
-      setSupported(false);
-      return;
-    }
-    try {
-      window.speechSynthesis?.cancel(); // don't talk over the mic
-    } catch {
-      /* ignore */
-    }
-    const rec = new Ctor();
-    rec.lang = "ur-PK";
-    rec.interimResults = true;
-    rec.continuous = false;
-    rec.maxAlternatives = 1;
-    let finalText = "";
-    rec.onresult = (e) => {
-      let interimText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else interimText += r[0].transcript;
-      }
-      setInterim(interimText);
-    };
-    rec.onerror = () => {
-      setListening(false);
-      setInterim("");
-    };
-    rec.onend = () => {
-      setListening(false);
-      setInterim("");
-      const t = finalText.trim();
-      if (t) void sendToAI(t);
-    };
-    recognitionRef.current = rec;
-    setListening(true);
-    try {
-      rec.start();
-    } catch {
-      setListening(false);
-    }
-  }, [sendToAI]);
-
-  const stopListening = useCallback(() => {
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  useEffect(() => {
+    handleUserTextRef.current = handleUserText;
+  }, [handleUserText]);
 
   const openCall = useCallback(() => {
     setOpen(true);
+    goLive(true);
     const name = userName.trim() || "دوست";
-    const greet = `السلام علیکم ${name}! میں آپ کا اے آئی ٹریڈنگ اسسٹنٹ ہوں۔ مائیک دبا کر اردو میں بات کریں، میں سن رہا ہوں۔`;
+    const greet = `السلام علیکم ${name}! میں آپ کا اے آئی ٹریڈنگ اسسٹنٹ ہوں۔ اب آپ کھل کر اردو میں بات کریں، بٹن دبانے کی ضرورت نہیں۔ بتائیے، آپ کیسے ہیں؟`;
     setMessages([{ role: "assistant", text: greet }]);
-    speakUrdu(greet);
-  }, [userName]);
+    setSpeaking(true);
+    speakUrdu(greet, {
+      onEnd: () => {
+        setSpeaking(false);
+        if (liveRef.current)
+          restartTimerRef.current = setTimeout(() => beginListening(), 200);
+      },
+    });
+  }, [userName, goLive, beginListening]);
 
-  const endCall = useCallback(() => {
-    setOpen(false);
-    setListening(false);
-    setInterim("");
-    setThinking(false);
+  const stopEverything = useCallback(() => {
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
     try {
       recognitionRef.current?.abort();
     } catch {
@@ -207,11 +243,34 @@ export function VoiceAssistant({
     } catch {
       /* ignore */
     }
+    setListening(false);
+    setSpeaking(false);
+    setInterim("");
   }, []);
+
+  // Big button: pause (stop listening/speaking but stay in the call) or resume.
+  const togglePause = useCallback(() => {
+    if (liveRef.current) {
+      goLive(false);
+      stopEverything();
+    } else {
+      goLive(true);
+      beginListening();
+    }
+  }, [goLive, beginListening, stopEverything]);
+
+  const endCall = useCallback(() => {
+    goLive(false);
+    stopEverything();
+    setThinking(false);
+    setOpen(false);
+  }, [goLive, stopEverything]);
 
   // Stop everything if the component unmounts mid-call.
   useEffect(
     () => () => {
+      liveRef.current = false;
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       try {
         recognitionRef.current?.abort();
       } catch {
@@ -258,18 +317,22 @@ export function VoiceAssistant({
           <div className="flex items-center gap-2.5">
             <span className="relative flex size-9 items-center justify-center rounded-full bg-primary-muted text-primary">
               <Bot className="size-4.5" />
-              {(listening || thinking) && (
+              {(listening || thinking || speaking) && (
                 <span className="absolute inset-0 rounded-full border border-primary/40 motion-safe:animate-ping" />
               )}
             </span>
             <div className="leading-tight">
               <p className="text-sm font-semibold text-foreground">AI Assistant</p>
               <p className="text-[11px] text-muted-foreground">
-                {listening
-                  ? "سن رہا ہوں…"
-                  : thinking
-                    ? "سوچ رہا ہوں…"
-                    : "اردو / ہندی · Live"}
+                {!live
+                  ? "روکا گیا"
+                  : speaking
+                    ? "بول رہا ہوں…"
+                    : thinking
+                      ? "سوچ رہا ہوں…"
+                      : listening
+                        ? "سن رہا ہوں…"
+                        : "اردو / ہندی · Live"}
               </p>
             </div>
           </div>
@@ -345,29 +408,45 @@ export function VoiceAssistant({
           )}
         </div>
 
-        {/* Mic control */}
+        {/* Live control — pause / resume the hands-free conversation */}
         <div className="flex flex-col items-center gap-2 border-t border-border px-4 py-4">
           {supported ? (
             <>
               <button
                 type="button"
-                onClick={listening ? stopListening : startListening}
-                disabled={thinking}
-                aria-label={listening ? "Stop" : "Speak"}
+                onClick={togglePause}
+                aria-label={live ? "Pause" : "Resume"}
                 className={cn(
-                  "relative flex size-16 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-95 disabled:opacity-50",
-                  listening ? "bg-negative" : "bg-positive"
+                  "relative flex size-16 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-95",
+                  !live
+                    ? "bg-muted-foreground"
+                    : speaking
+                      ? "bg-primary"
+                      : "bg-positive"
                 )}
               >
-                {listening && (
-                  <span className="absolute inset-0 rounded-full bg-negative/40 motion-safe:animate-ping" />
+                {live && (listening || speaking) && (
+                  <span
+                    className={cn(
+                      "absolute inset-0 rounded-full motion-safe:animate-ping",
+                      speaking ? "bg-primary/40" : "bg-positive/40"
+                    )}
+                  />
                 )}
-                <Mic className="relative size-7" />
+                {!live ? (
+                  <Mic className="relative size-7" />
+                ) : (
+                  <Pause className="relative size-7" />
+                )}
               </button>
               <p className="text-center text-[11px] text-muted-foreground">
-                {listening
-                  ? "بولیں… دوبارہ دبانے پر رک جائے گا"
-                  : "مائیک دبائیں اور اردو میں بولیں"}
+                {!live
+                  ? "روکا گیا — دوبارہ شروع کرنے کے لیے دبائیں"
+                  : speaking
+                    ? "AI بول رہا ہے…"
+                    : thinking
+                      ? "AI سوچ رہا ہے…"
+                      : "بس بولیں — میں سن رہا ہوں (بٹن دبانے کی ضرورت نہیں)"}
               </p>
             </>
           ) : (

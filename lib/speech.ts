@@ -17,9 +17,16 @@ export function pickUrduVoice(): SpeechSynthesisVoice | null {
   );
 }
 
-/** Speak Urdu/Hindi text aloud. Silently no-ops where speech isn't available. */
-export function speakUrdu(text: string): void {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+/**
+ * Speak Urdu/Hindi text aloud. Silently no-ops where speech isn't available.
+ * `onEnd` fires when speech finishes (or immediately if speech is unavailable or
+ * errors) — used by the live voice loop to resume listening afterwards.
+ */
+export function speakUrdu(text: string, opts?: { onEnd?: () => void }): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    opts?.onEnd?.();
+    return;
+  }
   try {
     window.speechSynthesis.cancel(); // interrupt any ongoing speech
     const u = new SpeechSynthesisUtterance(text);
@@ -28,8 +35,12 @@ export function speakUrdu(text: string): void {
     if (voice) u.voice = voice;
     u.rate = 0.95; // a touch slower reads Urdu more naturally
     u.pitch = 1;
+    if (opts?.onEnd) {
+      u.onend = () => opts.onEnd?.();
+      u.onerror = () => opts.onEnd?.();
+    }
     window.speechSynthesis.speak(u);
   } catch {
-    /* speech not available — ignore */
+    opts?.onEnd?.();
   }
 }
