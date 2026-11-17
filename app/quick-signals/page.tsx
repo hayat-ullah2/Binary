@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  CalendarOff,
 } from "lucide-react";
 import {
   TradingViewChart,
@@ -24,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { cn, APP_TIMEZONE, APP_TZ_LABEL } from "@/lib/utils";
+import { cn, APP_TIMEZONE, APP_TZ_LABEL, isWeekend } from "@/lib/utils";
 import { getPair } from "@/lib/mock-data";
 import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
@@ -174,6 +175,29 @@ export default function QuickSignalsPage() {
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const idRef = useRef(0);
 
+  // Weekend gate — the Forex market is closed Sat/Sun (UTC+6). Starts false so
+  // server and first client render match; the real value is set after mount.
+  const [marketClosed, setMarketClosed] = useState(false);
+  const [weekendDismissed, setWeekendDismissed] = useState(false);
+  const showWeekendModal = marketClosed && !weekendDismissed;
+
+  // Re-check the day every minute so the modal clears on its own when Monday
+  // (UTC+6) arrives, without a page refresh. Deferred into timer callbacks so no
+  // setState runs synchronously in the effect body.
+  useEffect(() => {
+    const check = () => {
+      const closed = isWeekend();
+      setMarketClosed(closed);
+      if (!closed) setWeekendDismissed(false);
+    };
+    const initial = setTimeout(check, 0);
+    const id = setInterval(check, 60_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
+  }, []);
+
   const ENTRY_LEAD = 5; // seconds to "take trade in" before the window starts
   const active = phase === "entry" || phase === "progress";
 
@@ -190,6 +214,12 @@ export default function QuickSignalsPage() {
   }
 
   const generate = useCallback(() => {
+    // Market is closed on the weekend — bounce back to the modal, don't generate.
+    if (isWeekend()) {
+      setMarketClosed(true);
+      setWeekendDismissed(false);
+      return;
+    }
     setPhase("analyzing");
     setSignal(null);
     const sec = seconds;
@@ -471,10 +501,15 @@ export default function QuickSignalsPage() {
                 <Button
                   size="lg"
                   onClick={generate}
-                  disabled={phase === "analyzing"}
+                  disabled={phase === "analyzing" || marketClosed}
                   className="w-full sm:w-auto"
                 >
-                  {phase === "analyzing" ? (
+                  {marketClosed ? (
+                    <>
+                      <CalendarOff className="size-4" />
+                      Market closed
+                    </>
+                  ) : phase === "analyzing" ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
                       Analyzing…
@@ -497,6 +532,13 @@ export default function QuickSignalsPage() {
                   <span className="text-muted-foreground">Voice</span>
                 </label>
               </div>
+
+              {marketClosed && (
+                <p className="mt-3 flex items-center gap-1.5 text-center text-xs text-muted-foreground">
+                  <CalendarOff className="size-3.5" />
+                  Market closed for the weekend — signals resume Monday.
+                </p>
+              )}
 
               {/* Two-phase trade box: take-trade-in → trade-in-progress */}
               {active && signal && (
@@ -678,11 +720,62 @@ export default function QuickSignalsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {showWeekendModal && (
+        <WeekendModal onClose={() => setWeekendDismissed(true)} />
+      )}
     </div>
   );
 }
 
 /* ───────────────────────────── Sub-components ───────────────────────────── */
+
+/** Full-screen notice shown on weekends (Sat/Sun, UTC+6) — market is closed. */
+function WeekendModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default bg-background/70 backdrop-blur-sm"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="weekend-title"
+        className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-surface p-6 text-center shadow-2xl"
+      >
+        <div className="pointer-events-none absolute -top-16 left-1/2 size-40 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+
+        <span className="relative mx-auto flex size-16 items-center justify-center rounded-full bg-primary-muted text-primary">
+          <CalendarOff className="size-8" />
+        </span>
+        <h2
+          id="weekend-title"
+          className="relative mt-4 text-xl font-bold text-foreground"
+        >
+          Market Closed
+        </h2>
+        <p className="relative mt-2 text-sm text-muted-foreground">
+          The Forex market is closed on weekends (Saturday &amp; Sunday). Quick
+          Signals will resume automatically on Monday.
+        </p>
+        <Button onClick={onClose} className="relative mt-5 w-full">
+          Got it
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function Chip({
   active,

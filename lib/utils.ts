@@ -79,3 +79,16 @@ export function formatDateTime(iso: string): string {
     timeZone: APP_TIMEZONE,
   });
 }
+
+/**
+ * True on Saturday or Sunday in the app timezone (UTC+6) — the Forex market is
+ * closed over the weekend. Timezone-fixed so every device agrees on the day
+ * regardless of the visitor's local clock.
+ */
+export function isWeekend(now: Date = new Date()): boolean {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIMEZONE,
+    weekday: "short",
+  }).format(now);
+  return weekday === "Sat" || weekday === "Sun";
+}
