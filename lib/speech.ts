@@ -1,40 +1,44 @@
 /**
  * Browser text-to-speech helpers. Uses the free, on-device Web Speech API — no
- * server, no API key. We speak with a HINDI voice and Devanagari text because
- * spoken Hindustani is identical to everyday Urdu, and Hindi voices are far more
- * widely installed (desktop Chrome, Android) than Urdu voices — Urdu/Nastaliq
- * TTS is missing on most desktops, which is why we standardise on Hindi here.
- * The user still SEES Urdu (Nastaliq) in the UI; only the spoken text is Hindi.
+ * server, no API key.
+ *
+ * Accent strategy: PREFER an Urdu (ur) voice reading the Urdu Nastaliq text, so
+ * the user hears a natural Pakistani-Urdu accent (available on most Android
+ * phones and in Chrome's Google voices). Only when no Urdu voice is installed do
+ * we fall back to a Hindi (hi) voice reading Hindi Devanagari text — that keeps
+ * desktops without an Urdu voice working, at the cost of an Indian-Hindi accent.
  */
 
-/** Best available Hindi voice, falling back to Urdu, else the browser default. */
-export function pickSpeechVoice(): SpeechSynthesisVoice | null {
+/** First installed voice whose language starts with `prefix` (e.g. "ur", "hi"). */
+function findVoice(prefix: string): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
   const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return null;
-  return (
-    voices.find((v) => v.lang?.toLowerCase().startsWith("hi")) ??
-    voices.find((v) => v.lang?.toLowerCase().startsWith("ur")) ??
-    null
-  );
+  return voices.find((v) => v.lang?.toLowerCase().startsWith(prefix)) ?? null;
 }
 
 /**
- * Speak text aloud (expects Hindi/Devanagari for best cross-device results).
- * Silently no-ops where speech isn't available. `onEnd` fires when speech
- * finishes (or immediately if speech is unavailable or errors) — used by the
- * live voice loop to resume listening afterwards.
+ * Speak a message, choosing the most natural voice available: Urdu (Pakistani
+ * accent, Nastaliq text) when present, else Hindi (Devanagari text). Pass both
+ * scripts of the SAME message. `onEnd` fires when speech finishes (or at once if
+ * speech is unavailable) — used by the live voice loop to resume listening.
  */
-export function speakUrdu(text: string, opts?: { onEnd?: () => void }): void {
+export function speakUrduHindi(
+  urdu: string,
+  hindi: string,
+  opts?: { onEnd?: () => void }
+): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     opts?.onEnd?.();
     return;
   }
+  const urVoice = findVoice("ur");
+  const hiVoice = urVoice ? null : findVoice("hi");
+  const useUrdu = urVoice !== null;
   try {
     window.speechSynthesis.cancel(); // interrupt any ongoing speech
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "hi-IN";
-    const voice = pickSpeechVoice();
+    const u = new SpeechSynthesisUtterance(useUrdu ? urdu : hindi);
+    u.lang = useUrdu ? "ur-PK" : "hi-IN";
+    const voice = urVoice ?? hiVoice;
     if (voice) u.voice = voice;
     u.rate = 0.95; // a touch slower reads more naturally
     u.pitch = 1;

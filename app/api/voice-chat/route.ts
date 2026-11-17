@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
     "You do NOT place or execute trades — the user places trades themselves on their broker. Never say a trade was taken/done; only discuss whether they should.",
     "You help with: the current signal (up/down), confidence, expiry, whether to take the trade, simple market/trading explanations, and risk discipline. If asked something totally unrelated, gently steer back to trading.",
     "Never promise guaranteed profit; signals are illustrative.",
+    "The user is from Pakistan. In the Urdu (display) field use natural, everyday Pakistani Urdu vocabulary and phrasing — not Hindi-leaning words (e.g. prefer شکریہ, بہتر, ضرور, اندازہ; avoid धन्यवाद-style Hindi words).",
     "OUTPUT FORMAT: respond with ONLY a JSON object, no other text, exactly like:",
     '{"display":"<your reply in Urdu Nastaliq script>","speak":"<the SAME reply written in Hindi Devanagari script>"}',
     "Both fields must carry the same message — display in Urdu for the screen, speak in Hindi for the voice.",

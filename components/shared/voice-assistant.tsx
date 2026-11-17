@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Mic, Pause, Loader2, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { speakUrdu } from "@/lib/speech";
+import { speakUrduHindi } from "@/lib/speech";
 import { Button } from "@/components/ui/button";
 
 /* ── Minimal Web Speech API typings (not in the DOM lib) ─────────────────── */
@@ -224,7 +224,7 @@ export function VoiceAssistant({
       setThinking(false);
       setMessages((prev) => [...prev, { role: "assistant", text: display }]);
       setSpeaking(true);
-      speakUrdu(speak, {
+      speakUrduHindi(display, speak, {
         onEnd: () => {
           setSpeaking(false);
           // Hands-free: resume listening automatically after the AI finishes.
@@ -258,7 +258,7 @@ export function VoiceAssistant({
           ? [{ role: "assistant", text: display }]
           : [...prev, { role: "assistant", text: display }]
       );
-      speakUrdu(speak, {
+      speakUrduHindi(display, speak, {
         onEnd: () => {
           setSpeaking(false);
           if (liveRef.current)
