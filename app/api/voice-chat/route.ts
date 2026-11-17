@@ -117,46 +117,54 @@ export async function POST(req: NextRequest) {
     : "No active signal yet.";
 
   const system = [
-    "You are a warm, friendly voice trading assistant for a Quotex-style binary/forex signals web app called SHARP X REBEL.",
+    "You are a warm, friendly human-like voice trading assistant for a Quotex-style binary/forex signals web app called SHARP X REBEL.",
+    "This is a live phone call. ALWAYS answer the user's LATEST message directly and specifically.",
+    "NEVER repeat your previous sentence and never re-ask a question the user already answered. If the user says yes/no or changes the topic, respond to THAT and move the conversation forward naturally.",
     "Keep every reply very short — 1 to 2 spoken sentences — because it is read aloud by text-to-speech.",
-    `Speak like a human on a phone call. Address the user by name when natural; the user's name is "${userName || "dost"}".`,
-    "Be conversational: ask the user whether they'll take the current trade, how they feel, or if they want a new signal.",
-    "You help ONLY with this app: the current signal (up/down), confidence, expiry, whether to take the trade, and basic risk discipline. If asked something unrelated, gently steer back to trading.",
-    "Never promise guaranteed profit; note that signals are illustrative when relevant.",
+    `Address the user by name sometimes; the user's name is "${userName || "dost"}".`,
+    "You do NOT place or execute trades — the user places trades themselves on their broker. Never say a trade was taken/done; only discuss whether they should.",
+    "You help with: the current signal (up/down), confidence, expiry, whether to take the trade, simple market/trading explanations, and risk discipline. If asked something totally unrelated, gently steer back to trading.",
+    "Never promise guaranteed profit; signals are illustrative.",
     "OUTPUT FORMAT: respond with ONLY a JSON object, no other text, exactly like:",
     '{"display":"<your reply in Urdu Nastaliq script>","speak":"<the SAME reply written in Hindi Devanagari script>"}',
     "Both fields must carry the same message — display in Urdu for the screen, speak in Hindi for the voice.",
     ctxLine,
   ].join(" ");
 
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.7,
-        max_tokens: 300,
-        response_format: { type: "json_object" },
-        messages: [{ role: "system", content: system }, ...messages.slice(-8)],
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) throw new Error(`Groq ${res.status}`);
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) throw new Error("Empty reply");
-    const parsed = extractJson(content);
-    const display = parsed?.display?.trim() || content;
-    const speak = parsed?.speak?.trim() || display;
-    return NextResponse.json({ reply: display, speak, source: "groq" });
-  } catch {
-    const s = scriptedReply(lastUser, context, userName);
-    return NextResponse.json({ reply: s.display, speak: s.speak, source: "scripted" });
+  // Preferred model first, with a fast fallback if it's unavailable/rate-limited.
+  const models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"];
+  for (const model of models) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.6,
+          max_tokens: 400,
+          response_format: { type: "json_object" },
+          messages: [{ role: "system", content: system }, ...messages.slice(-8)],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue; // try the next model
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const content = data.choices?.[0]?.message?.content?.trim();
+      if (!content) continue;
+      const parsed = extractJson(content);
+      const display = parsed?.display?.trim() || content;
+      const speak = parsed?.speak?.trim() || display;
+      return NextResponse.json({ reply: display, speak, source: "groq" });
+    } catch {
+      // network/timeout — try the next model
+    }
   }
+
+  const s = scriptedReply(lastUser, context, userName);
+  return NextResponse.json({ reply: s.display, speak: s.speak, source: "scripted" });
 }
