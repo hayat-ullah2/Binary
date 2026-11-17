@@ -83,7 +83,8 @@ export function VoiceAssistant({
   /** When `key` changes, auto-open the call and announce the new signal. */
   signalPrompt?: SignalPrompt | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // full modal (manual "talk" button)
+  const [ambient, setAmbient] = useState(false); // inline call (signal auto-start)
   // Resolved once on first render; only read after the user opens the call
   // (client-side), so the server/client difference never reaches the DOM.
   const [supported] = useState(() => getRecognitionCtor() !== null);
@@ -241,13 +242,19 @@ export function VoiceAssistant({
 
   // Open (or continue) the call with an assistant line — show Urdu (`display`),
   // speak Hindi (`speak`), then resume hands-free listening when it finishes.
+  // `modal`: true → full dialog; false → ambient inline bar (same screen).
   const startWithMessage = useCallback(
-    (display: string, speak: string, fresh: boolean) => {
-      setOpen(true);
+    (
+      display: string,
+      speak: string,
+      opts: { fresh: boolean; modal: boolean }
+    ) => {
+      setOpen(opts.modal);
+      setAmbient(!opts.modal);
       goLive(true);
       setSpeaking(true);
       setMessages((prev) =>
-        fresh
+        opts.fresh
           ? [{ role: "assistant", text: display }]
           : [...prev, { role: "assistant", text: display }]
       );
@@ -272,7 +279,7 @@ export function VoiceAssistant({
     startWithMessage(
       `السلام علیکم ${nameU}! میں آپ کا اے آئی ٹریڈنگ اسسٹنٹ ہوں۔ اب آپ کھل کر بات کریں، بٹن دبانے کی ضرورت نہیں۔ بتائیے، آپ کیسے ہیں؟`,
       `नमस्ते ${nameHi}! मैं आपका ए आई ट्रेडिंग असिस्टेंट हूँ। अब आप खुलकर बात करें, बटन दबाने की ज़रूरत नहीं। बताइए, आप कैसे हैं?`,
-      true
+      { fresh: true, modal: true }
     );
   }, [userName, startWithMessage]);
 
@@ -292,8 +299,12 @@ export function VoiceAssistant({
       sp.direction === "BUY"
         ? `${nameHi}, आपका नया सिग्नल ऊपर यानी खरीद का है। क्या आप यह ट्रेड लेंगे?`
         : `${nameHi}, आपका नया सिग्नल नीचे यानी बिक्री का है। क्या आप यह ट्रेड लेंगे?`;
-    // Defer so no setState runs synchronously in the effect body.
-    const t = setTimeout(() => startRef.current?.(display, speak, true), 0);
+    // Defer so no setState runs synchronously in the effect body. Ambient mode
+    // (modal:false) runs the call inline — no popup covering the screen.
+    const t = setTimeout(
+      () => startRef.current?.(display, speak, { fresh: true, modal: false }),
+      0
+    );
     return () => clearTimeout(t);
   }, [signalKey]);
 
@@ -330,6 +341,7 @@ export function VoiceAssistant({
     stopEverything();
     setThinking(false);
     setOpen(false);
+    setAmbient(false);
   }, [goLive, stopEverything]);
 
   // Stop everything if the component unmounts mid-call.
@@ -352,6 +364,51 @@ export function VoiceAssistant({
   );
 
   if (!open) {
+    // Ambient (signal auto-start): a compact inline bar — no modal over the page.
+    if (ambient) {
+      return (
+        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2">
+          <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-muted text-primary">
+            <Bot className="size-4" />
+            {(listening || speaking || thinking) && (
+              <span className="absolute inset-0 rounded-full border border-primary/40 motion-safe:animate-ping" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-xs font-semibold text-foreground">
+              AI Assistant · Live
+            </p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {!live
+                ? "روکا گیا"
+                : speaking
+                  ? "بول رہا ہوں…"
+                  : thinking
+                    ? "سوچ رہا ہوں…"
+                    : listening
+                      ? "سن رہا ہوں… بولیں"
+                      : "…"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={togglePause}
+            aria-label={live ? "Pause" : "Resume"}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-foreground transition-colors hover:bg-muted"
+          >
+            {live ? <Pause className="size-4" /> : <Mic className="size-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={endCall}
+            aria-label="End call"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-negative/10 text-negative transition-colors hover:bg-negative/20"
+          >
+            <PhoneOff className="size-4" />
+          </button>
+        </div>
+      );
+    }
     return (
       <Button
         variant="outline"
