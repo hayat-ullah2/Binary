@@ -27,6 +27,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { cn, APP_TIMEZONE, APP_TZ_LABEL, isWeekend } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { speakUrdu } from "@/lib/speech";
+import { VoiceAssistant } from "@/components/shared/voice-assistant";
 import { getPair } from "@/lib/mock-data";
 import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
@@ -100,37 +102,13 @@ function pickLine(lines: string[], bag: number[]): string {
   return lines[bag.pop() as number];
 }
 
-/** Best available Urdu voice, falling back to Hindi (spoken Hindustani ≈ Urdu). */
-function pickUrduVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return null;
-  return (
-    voices.find((v) => v.lang?.toLowerCase().startsWith("ur")) ??
-    voices.find((v) => v.lang?.toLowerCase().startsWith("hi")) ??
-    null
-  );
-}
-
 function speakSignal(direction: Direction, name: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   const who = name.trim() || "ٹریڈر"; // "trader" when no name is available
   const template =
     direction === "BUY"
       ? pickLine(BUY_LINES, buyBag)
       : pickLine(SELL_LINES, sellBag);
-  const text = template.replace("{name}", who);
-  try {
-    window.speechSynthesis.cancel(); // interrupt any ongoing speech
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ur-PK";
-    const voice = pickUrduVoice();
-    if (voice) u.voice = voice;
-    u.rate = 0.95; // a touch slower reads Urdu more naturally
-    u.pitch = 1;
-    window.speechSynthesis.speak(u);
-  } catch {
-    /* speech not available — ignore */
-  }
+  speakUrdu(template.replace("{name}", who));
 }
 
 export default function QuickSignalsPage() {
@@ -530,6 +508,19 @@ export default function QuickSignalsPage() {
                   )}
                   <span className="text-muted-foreground">Voice</span>
                 </label>
+              </div>
+
+              <div className="mt-3 w-full max-w-sm">
+                <VoiceAssistant
+                  userName={firstName}
+                  context={{
+                    pairLabel,
+                    direction: signal?.direction ?? null,
+                    confidence: signal?.confidence ?? null,
+                    expirySeconds: seconds,
+                    phase,
+                  }}
+                />
               </div>
 
               {marketClosed && (
