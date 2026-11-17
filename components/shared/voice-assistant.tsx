@@ -68,12 +68,20 @@ export interface VoiceContext {
  * reply is generated server-side (Groq Llama, Urdu) and read back aloud. Fully
  * free and on-device for the voice I/O; the brain lives in /api/voice-chat.
  */
+export interface SignalPrompt {
+  key: number; // bump to trigger a fresh auto-started announcement
+  direction: "BUY" | "SELL";
+}
+
 export function VoiceAssistant({
   userName,
   context,
+  signalPrompt,
 }: {
   userName: string;
   context: VoiceContext;
+  /** When `key` changes, auto-open the call and announce the new signal. */
+  signalPrompt?: SignalPrompt | null;
 }) {
   const [open, setOpen] = useState(false);
   // Resolved once on first render; only read after the user opens the call
@@ -95,9 +103,17 @@ export function VoiceAssistant({
   const messagesRef = useRef<Msg[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const userNameRef = useRef(userName);
+  const signalPromptRef = useRef(signalPrompt);
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
+  useEffect(() => {
+    userNameRef.current = userName;
+  }, [userName]);
+  useEffect(() => {
+    signalPromptRef.current = signalPrompt;
+  }, [signalPrompt]);
   useEffect(() => {
     messagesRef.current = messages;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -120,7 +136,9 @@ export function VoiceAssistant({
       /* ignore */
     }
     const rec = new Ctor();
-    rec.lang = "ur-PK";
+    // Hindi recognition is widely supported (incl. desktop Chrome) and captures
+    // everyday Urdu speech well; ur-PK is missing on most desktops.
+    rec.lang = "hi-IN";
     rec.interimResults = true;
     rec.continuous = false;
     rec.maxAlternatives = 1;
@@ -177,7 +195,9 @@ export function VoiceAssistant({
       const userMsg: Msg = { role: "user", text };
       setMessages((prev) => [...prev, userMsg]);
       setThinking(true);
-      let reply = "معاف کیجیے، دوبارہ کوشش کریں۔";
+      // `display` is Urdu (shown); `speak` is Hindi (spoken by TTS).
+      let display = "معاف کیجیے، دوبارہ کوشش کریں۔";
+      let speak = "माफ़ कीजिए, दोबारा कोशिश करें।";
       try {
         const history = [...messagesRef.current, userMsg]
           .slice(-8)
@@ -191,15 +211,19 @@ export function VoiceAssistant({
             context: contextRef.current,
           }),
         });
-        const data = (await res.json()) as { reply?: string };
-        if (data.reply?.trim()) reply = data.reply.trim();
+        const data = (await res.json()) as { reply?: string; speak?: string };
+        if (data.reply?.trim()) {
+          display = data.reply.trim();
+          speak = data.speak?.trim() || display;
+        }
       } catch {
-        reply = "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔";
+        display = "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔";
+        speak = "माफ़ कीजिए, कनेक्शन में समस्या है। दोबारा कोशिश करें।";
       }
       setThinking(false);
-      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", text: display }]);
       setSpeaking(true);
-      speakUrdu(reply, {
+      speakUrdu(speak, {
         onEnd: () => {
           setSpeaking(false);
           // Hands-free: resume listening automatically after the AI finishes.
@@ -215,21 +239,63 @@ export function VoiceAssistant({
     handleUserTextRef.current = handleUserText;
   }, [handleUserText]);
 
+  // Open (or continue) the call with an assistant line — show Urdu (`display`),
+  // speak Hindi (`speak`), then resume hands-free listening when it finishes.
+  const startWithMessage = useCallback(
+    (display: string, speak: string, fresh: boolean) => {
+      setOpen(true);
+      goLive(true);
+      setSpeaking(true);
+      setMessages((prev) =>
+        fresh
+          ? [{ role: "assistant", text: display }]
+          : [...prev, { role: "assistant", text: display }]
+      );
+      speakUrdu(speak, {
+        onEnd: () => {
+          setSpeaking(false);
+          if (liveRef.current)
+            restartTimerRef.current = setTimeout(() => beginListening(), 200);
+        },
+      });
+    },
+    [goLive, beginListening]
+  );
+  const startRef = useRef(startWithMessage);
+  useEffect(() => {
+    startRef.current = startWithMessage;
+  }, [startWithMessage]);
+
   const openCall = useCallback(() => {
-    setOpen(true);
-    goLive(true);
-    const name = userName.trim() || "دوست";
-    const greet = `السلام علیکم ${name}! میں آپ کا اے آئی ٹریڈنگ اسسٹنٹ ہوں۔ اب آپ کھل کر اردو میں بات کریں، بٹن دبانے کی ضرورت نہیں۔ بتائیے، آپ کیسے ہیں؟`;
-    setMessages([{ role: "assistant", text: greet }]);
-    setSpeaking(true);
-    speakUrdu(greet, {
-      onEnd: () => {
-        setSpeaking(false);
-        if (liveRef.current)
-          restartTimerRef.current = setTimeout(() => beginListening(), 200);
-      },
-    });
-  }, [userName, goLive, beginListening]);
+    const nameU = userName.trim() || "دوست";
+    const nameHi = userName.trim() || "दोस्त";
+    startWithMessage(
+      `السلام علیکم ${nameU}! میں آپ کا اے آئی ٹریڈنگ اسسٹنٹ ہوں۔ اب آپ کھل کر بات کریں، بٹن دبانے کی ضرورت نہیں۔ بتائیے، آپ کیسے ہیں؟`,
+      `नमस्ते ${nameHi}! मैं आपका ए आई ट्रेडिंग असिस्टेंट हूँ। अब आप खुलकर बात करें, बटन दबाने की ज़रूरत नहीं। बताइए, आप कैसे हैं?`,
+      true
+    );
+  }, [userName, startWithMessage]);
+
+  // Auto-start the call and announce whenever a NEW signal is generated.
+  const signalKey = signalPrompt?.key ?? 0;
+  useEffect(() => {
+    if (!signalKey) return;
+    const sp = signalPromptRef.current;
+    if (!sp) return;
+    const nameU = userNameRef.current.trim() || "دوست";
+    const nameHi = userNameRef.current.trim() || "दोस्त";
+    const display =
+      sp.direction === "BUY"
+        ? `${nameU}، آپ کا نیا سگنل اوپر یعنی خرید کا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟`
+        : `${nameU}، آپ کا نیا سگنل نیچے یعنی فروخت کا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟`;
+    const speak =
+      sp.direction === "BUY"
+        ? `${nameHi}, आपका नया सिग्नल ऊपर यानी खरीद का है। क्या आप यह ट्रेड लेंगे?`
+        : `${nameHi}, आपका नया सिग्नल नीचे यानी बिक्री का है। क्या आप यह ट्रेड लेंगे?`;
+    // Defer so no setState runs synchronously in the effect body.
+    const t = setTimeout(() => startRef.current?.(display, speak, true), 0);
+    return () => clearTimeout(t);
+  }, [signalKey]);
 
   const stopEverything = useCallback(() => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
