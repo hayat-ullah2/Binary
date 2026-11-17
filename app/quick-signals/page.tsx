@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { cn, APP_TIMEZONE, APP_TZ_LABEL, isWeekend } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
 import { getPair } from "@/lib/mock-data";
 import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
@@ -54,75 +55,37 @@ interface RecentItem {
   time: string;
 }
 
-// 30 motivational voice lines each, spoken (browser text-to-speech) on a new
-// signal. A shuffle-bag guarantees every line plays once before any repeats.
+// Urdu voice lines, spoken (browser text-to-speech) on a new signal. Each line
+// greets the user by name and asks whether they'll take the trade — an "AI
+// assistant" feel. `{name}` is swapped for the signed-in user's first name.
+// A shuffle-bag guarantees every line plays once before any repeats.
 const BUY_LINES = [
-  "Strong buy signal! Ride the momentum and aim higher.",
-  "Bulls are in control. Stay confident and go up!",
-  "Buy confirmed. Trust your plan and trade with discipline.",
-  "Upward momentum detected. This is your moment — go up!",
-  "The trend is your friend, and it's pointing up. Buy now!",
-  "Green candles ahead. Enter the buy and stay focused.",
-  "Momentum is building. Catch the move upward!",
-  "A clean buy setup. Patience and discipline win.",
-  "The market is rising. Go long and stay sharp!",
-  "Buy signal locked in. Stick to your strategy.",
-  "Bulls are charging. Ride this wave to the top!",
-  "Opportunity is calling — it's a buy. Stay calm and confident.",
-  "The momentum favors the brave. Go up!",
-  "Upward breakout detected. Trust the signal and buy.",
-  "Strong hands win. This is a buy — stay steady.",
-  "The chart is climbing. Join the move up!",
-  "A powerful buy. Focus, enter, and let it run.",
-  "Green is the color of the hour. Buy with confidence!",
-  "The uptrend is alive. Go long and stay disciplined.",
-  "Bullish pressure is rising. Take the buy now!",
-  "Every pro started with one smart entry. This is a buy.",
-  "The market rewards the patient. Buy and hold your nerve.",
-  "Momentum up, confidence up. Buy up!",
-  "A fresh buy opportunity. Trust your edge.",
-  "The bulls have spoken. Go up and stay sharp!",
-  "Clean upward signal. Enter smart, trade calm.",
-  "Rise with the market. It's a buy!",
-  "Discipline today, profits tomorrow. Buy the signal.",
-  "The path of least resistance is up. Go long!",
-  "Strong buy. Breathe, focus, and ride the trend.",
+  "{name}، السلام علیکم! آپ کیسے ہیں؟ آپ کا نیا سگنل اوپر یعنی خرید کا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟",
+  "{name}، مبارک ہو! رجحان اوپر کی طرف ہے۔ پر اعتماد رہیں اور خرید کا ٹریڈ کریں۔",
+  "{name} جی، مارکیٹ اوپر جا رہی ہے۔ یہ کال سگنل ہے، سمجھداری سے ٹریڈ کریں۔",
+  "{name}، اوپر کی طرف ایک مضبوط سگنل ملا ہے۔ کیا آپ اگلا ٹریڈ لینا چاہیں گے؟",
+  "{name}، تیاری کر لیں — یہ خرید کا بہترین موقع ہے۔ اوپر کی طرف جائیں۔",
+  "{name}، بیل مارکیٹ پر قابض ہیں۔ پر اعتماد ہو کر اوپر کا ٹریڈ لیں۔",
+  "{name}، موقع آپ کو بلا رہا ہے — یہ خرید کا سگنل ہے۔ پرسکون رہیں اور ٹریڈ کریں۔",
+  "{name}، اوپر کی طرف بریک آؤٹ نظر آ رہا ہے۔ سگنل پر بھروسا کریں اور خریدیں۔",
+  "{name}، رجحان آپ کا دوست ہے اور وہ اوپر جا رہا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟",
+  "{name}، نیا کال سگنل تیار ہے۔ نظم و ضبط رکھیں اور اوپر کی طرف ٹریڈ کریں۔",
 ];
 const SELL_LINES = [
-  "Strong sell signal! The trend is heading down.",
-  "Bears are taking over. Follow the move and go lower!",
-  "Sell confirmed. Stay sharp and trade the trend.",
-  "Downward pressure detected. Stay focused and go down!",
-  "The momentum is falling. Take the sell now!",
-  "Red candles ahead. Enter the sell with discipline.",
-  "The market is dropping. Go short and stay calm.",
-  "Bearish breakout detected. Trust the signal and sell.",
-  "The trend turned down. Ride it lower!",
-  "Sell signal locked in. Stick to your plan.",
-  "Bears are charging. Catch the move downward!",
-  "A clean sell setup. Patience and focus win.",
-  "Downtrend confirmed. Go short and stay steady.",
-  "The chart is sliding. Join the move down!",
-  "Strong sell. Enter smart and let it fall.",
-  "Gravity is winning. It's a sell — stay disciplined.",
-  "Bearish pressure is building. Take the sell!",
-  "The path of least resistance is down. Go short!",
-  "A powerful sell. Focus, enter, and trade calm.",
-  "Red is the signal. Sell with confidence!",
-  "The market rewards the sharp. Sell and hold your nerve.",
-  "Momentum down, confidence steady. Take the sell!",
-  "A fresh sell opportunity. Trust your edge.",
-  "The bears have spoken. Go down and stay focused!",
-  "Clean downward signal. Enter smart, trade calm.",
-  "Fall with the market. It's a sell!",
-  "Discipline now, results later. Sell the signal.",
-  "The downtrend is alive. Go short and stay sharp.",
-  "Every smart trader respects the trend. This is a sell.",
-  "Strong sell. Breathe, focus, and ride it down.",
+  "{name}، السلام علیکم! آپ کیسے ہیں؟ آپ کا نیا سگنل نیچے یعنی فروخت کا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟",
+  "{name}، رجحان نیچے کی طرف ہے۔ پرسکون رہیں اور فروخت کا ٹریڈ کریں۔",
+  "{name} جی، مارکیٹ نیچے جا رہی ہے۔ یہ پٹ سگنل ہے، سوچ سمجھ کر ٹریڈ کریں۔",
+  "{name}، نیچے کی طرف ایک مضبوط سگنل ملا ہے۔ کیا آپ اگلا ٹریڈ لینا چاہیں گے؟",
+  "{name}، تیار ہو جائیں — یہ فروخت کا اچھا موقع ہے۔ نیچے کی طرف جائیں۔",
+  "{name}، بیئر مارکیٹ پر حاوی ہیں۔ پر اعتماد ہو کر نیچے کا ٹریڈ لیں۔",
+  "{name}، موقع سامنے ہے — یہ فروخت کا سگنل ہے۔ پرسکون رہیں اور ٹریڈ کریں۔",
+  "{name}، نیچے کی طرف بریک آؤٹ نظر آ رہا ہے۔ سگنل پر بھروسا کریں اور فروخت کریں۔",
+  "{name}، رجحان نیچے کی طرف مڑ گیا ہے۔ کیا آپ یہ ٹریڈ لیں گے؟",
+  "{name}، نیا پٹ سگنل تیار ہے۔ نظم و ضبط رکھیں اور نیچے کی طرف ٹریڈ کریں۔",
 ];
 
 // Shuffle-bags (one per direction) — refilled + shuffled when emptied so all
-// 30 lines are spoken once before any repeat.
+// lines are spoken once before any repeat.
 const buyBag: number[] = [];
 const sellBag: number[] = [];
 
@@ -137,16 +100,32 @@ function pickLine(lines: string[], bag: number[]): string {
   return lines[bag.pop() as number];
 }
 
-function speakSignal(direction: Direction) {
+/** Best available Urdu voice, falling back to Hindi (spoken Hindustani ≈ Urdu). */
+function pickUrduVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  return (
+    voices.find((v) => v.lang?.toLowerCase().startsWith("ur")) ??
+    voices.find((v) => v.lang?.toLowerCase().startsWith("hi")) ??
+    null
+  );
+}
+
+function speakSignal(direction: Direction, name: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const text =
+  const who = name.trim() || "ٹریڈر"; // "trader" when no name is available
+  const template =
     direction === "BUY"
       ? pickLine(BUY_LINES, buyBag)
       : pickLine(SELL_LINES, sellBag);
+  const text = template.replace("{name}", who);
   try {
     window.speechSynthesis.cancel(); // interrupt any ongoing speech
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1;
+    u.lang = "ur-PK";
+    const voice = pickUrduVoice();
+    if (voice) u.voice = voice;
+    u.rate = 0.95; // a touch slower reads Urdu more naturally
     u.pitch = 1;
     window.speechSynthesis.speak(u);
   } catch {
@@ -163,6 +142,26 @@ export default function QuickSignalsPage() {
   useEffect(() => {
     voiceRef.current = voice;
   }, [voice]);
+
+  // Signed-in user's first name — spoken in the Urdu voice line. Kept in a ref
+  // so the generate() callback always reads the latest without re-creating.
+  const { data: session } = authClient.useSession();
+  const firstName = session?.user?.name?.trim().split(/\s+/)[0] ?? "";
+  const nameRef = useRef(firstName);
+  useEffect(() => {
+    nameRef.current = firstName;
+  }, [firstName]);
+
+  // Prime the TTS voice list — browsers load voices async, so touch it once on
+  // mount (and on the voiceschanged event) so an Urdu/Hindi voice is ready.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.getVoices();
+    const handler = () => window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", handler);
+    return () =>
+      window.speechSynthesis.removeEventListener("voiceschanged", handler);
+  }, []);
   const [phase, setPhase] = useState<Phase>("idle");
   const [signal, setSignal] = useState<QuickSignal | null>(null);
   const [signalSource, setSignalSource] = useState<
@@ -239,7 +238,7 @@ export default function QuickSignalsPage() {
         setTradeSeconds(sec);
         setEntryLeft(ENTRY_LEAD);
         setPhase("entry");
-        if (voiceRef.current) speakSignal(sig.direction);
+        if (voiceRef.current) speakSignal(sig.direction, nameRef.current);
         idRef.current += 1;
         setRecent((prev) =>
           [
