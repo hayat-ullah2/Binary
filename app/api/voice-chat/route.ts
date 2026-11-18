@@ -83,6 +83,69 @@ function textStream(text: string): Response {
   });
 }
 
+/** Convert an upstream SSE body into a plain-text token stream for the client. */
+function sseToTextStream(
+  upstreamBody: ReadableStream<Uint8Array>,
+  extractDelta: (json: unknown) => string | undefined
+): Response {
+  const stream = new ReadableStream({
+    async start(controller) {
+      const reader = upstreamBody.getReader();
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+      let buffer = "";
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const l = line.trim();
+            if (!l.startsWith("data:")) continue;
+            const data = l.slice(5).trim();
+            if (data === "[DONE]") {
+              controller.close();
+              return;
+            }
+            try {
+              const delta = extractDelta(JSON.parse(data));
+              if (delta) controller.enqueue(encoder.encode(delta));
+            } catch {
+              /* ignore keep-alives / partial lines */
+            }
+          }
+        }
+      } catch {
+        /* upstream dropped — just end the stream */
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+/** Gemini SSE delta → text. */
+function geminiDelta(json: unknown): string | undefined {
+  const j = json as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  return j.candidates?.[0]?.content?.parts?.[0]?.text;
+}
+
+/** Groq/OpenAI SSE delta → text. */
+function groqDelta(json: unknown): string | undefined {
+  const j = json as { choices?: { delta?: { content?: string } }[] };
+  return j.choices?.[0]?.delta?.content;
+}
+
 export async function POST(req: NextRequest) {
   let body: Body;
   try {
@@ -98,8 +161,9 @@ export async function POST(req: NextRequest) {
   const lastUser =
     [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 
-  const key = process.env.GROQ_API_KEY;
-  if (!key) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!geminiKey && !groqKey) {
     return textStream(scriptedReply(lastUser, context, userName, lang));
   }
 
@@ -128,86 +192,65 @@ export async function POST(req: NextRequest) {
     ctxLine,
   ].join(" ");
 
-  // Fastest-first: qwen has no reasoning overhead (quickest first token).
-  const models = ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"];
-  for (const model of models) {
+  const history = messages.slice(-8);
+
+  // 1) Gemini (if configured) — Google's free Flash, streamed.
+  if (geminiKey) {
     try {
-      const upstream = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
+      // Gemini uses roles "user"/"model" and must start with a user turn.
+      const contents = history.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+      while (contents.length && contents[0].role === "model") contents.shift();
+      const up = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${geminiKey}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model,
-            temperature: 0.6,
-            max_tokens: 180,
-            stream: true,
-            ...(model.startsWith("openai/gpt-oss")
-              ? { reasoning_effort: "low" }
-              : {}),
-            messages: [
-              { role: "system", content: system },
-              ...messages.slice(-8),
-            ],
+            systemInstruction: { parts: [{ text: system }] },
+            contents,
+            generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
           }),
           signal: AbortSignal.timeout(15000),
         }
       );
-      if (!upstream.ok || !upstream.body) continue;
-
-      // Transform Groq's SSE into a plain-text token stream for the client.
-      const upstreamBody = upstream.body;
-      const stream = new ReadableStream({
-        async start(controller) {
-          const reader = upstreamBody.getReader();
-          const decoder = new TextDecoder();
-          const encoder = new TextEncoder();
-          let buffer = "";
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop() ?? "";
-              for (const line of lines) {
-                const l = line.trim();
-                if (!l.startsWith("data:")) continue;
-                const data = l.slice(5).trim();
-                if (data === "[DONE]") {
-                  controller.close();
-                  return;
-                }
-                try {
-                  const json = JSON.parse(data) as {
-                    choices?: { delta?: { content?: string } }[];
-                  };
-                  const delta = json.choices?.[0]?.delta?.content;
-                  if (delta) controller.enqueue(encoder.encode(delta));
-                } catch {
-                  /* ignore keep-alives / partial lines */
-                }
-              }
-            }
-          } catch {
-            /* upstream dropped — just end the stream */
-          } finally {
-            controller.close();
-          }
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-store",
-        },
-      });
+      if (up.ok && up.body) return sseToTextStream(up.body, geminiDelta);
     } catch {
-      // network/timeout — try the next model
+      /* fall through to Groq */
+    }
+  }
+
+  // 2) Groq — fastest-first: qwen (no reasoning overhead), then gpt-oss-20b.
+  if (groqKey) {
+    for (const model of ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]) {
+      try {
+        const up = await fetch(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${groqKey}`,
+            },
+            body: JSON.stringify({
+              model,
+              temperature: 0.6,
+              max_tokens: 180,
+              stream: true,
+              ...(model.startsWith("openai/gpt-oss")
+                ? { reasoning_effort: "low" }
+                : {}),
+              messages: [{ role: "system", content: system }, ...history],
+            }),
+            signal: AbortSignal.timeout(15000),
+          }
+        );
+        if (up.ok && up.body) return sseToTextStream(up.body, groqDelta);
+      } catch {
+        // network/timeout — try the next model
+      }
     }
   }
 
