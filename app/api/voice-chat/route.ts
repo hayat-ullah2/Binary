@@ -194,35 +194,7 @@ export async function POST(req: NextRequest) {
 
   const history = messages.slice(-8);
 
-  // 1) Gemini (if configured) — Google's free Flash, streamed.
-  if (geminiKey) {
-    try {
-      // Gemini uses roles "user"/"model" and must start with a user turn.
-      const contents = history.map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
-      while (contents.length && contents[0].role === "model") contents.shift();
-      const up = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: system }] },
-            contents,
-            generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
-          }),
-          signal: AbortSignal.timeout(15000),
-        }
-      );
-      if (up.ok && up.body) return sseToTextStream(up.body, geminiDelta);
-    } catch {
-      /* fall through to Groq */
-    }
-  }
-
-  // 2) Groq — fastest-first: qwen (no reasoning overhead), then gpt-oss-20b.
+  // 1) Groq — the fast path. qwen (no reasoning overhead), then gpt-oss-20b.
   if (groqKey) {
     for (const model of ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]) {
       try {
@@ -251,6 +223,35 @@ export async function POST(req: NextRequest) {
       } catch {
         // network/timeout — try the next model
       }
+    }
+  }
+
+  // 2) Gemini — last-resort backup only (its free tier tested much slower than
+  //    Groq, so it runs only if Groq is unavailable).
+  if (geminiKey) {
+    try {
+      // Gemini uses roles "user"/"model" and must start with a user turn.
+      const contents = history.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+      while (contents.length && contents[0].role === "model") contents.shift();
+      const up = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents,
+            generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
+          }),
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+      if (up.ok && up.body) return sseToTextStream(up.body, geminiDelta);
+    } catch {
+      /* fall through to scripted */
     }
   }
 

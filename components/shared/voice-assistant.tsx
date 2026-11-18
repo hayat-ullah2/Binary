@@ -96,6 +96,7 @@ export function VoiceAssistant({
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const liveRef = useRef(false);
   const handleUserTextRef = useRef<((t: string) => void) | null>(null);
   const beginListeningRef = useRef<(() => void) | null>(null);
@@ -138,15 +139,30 @@ export function VoiceAssistant({
     // everyday Urdu speech well; ur-PK is missing on most desktops.
     rec.lang = "hi-IN";
     rec.interimResults = true;
-    rec.continuous = false;
+    // Continuous + our own endpointing: we stop ~800ms after the user goes
+    // quiet, which is snappier than the browser's long built-in silence wait.
+    rec.continuous = true;
     rec.maxAlternatives = 1;
     let finalText = "";
     let fatal = false;
+    const armSilence = () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        try {
+          rec.stop(); // finalize now → onend fires with what we have
+        } catch {
+          /* ignore */
+        }
+      }, 800);
+    };
     rec.onresult = (e) => {
+      let heard = false;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
         if (r.isFinal) finalText += r[0].transcript;
+        if (r[0].transcript.trim()) heard = true;
       }
+      if (heard) armSilence(); // reset the countdown while the user is talking
     };
     rec.onerror = (ev) => {
       // Mic permission denied is fatal; 'no-speech'/'aborted' are normal.
@@ -155,6 +171,7 @@ export function VoiceAssistant({
       }
     };
     rec.onend = () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       setListening(false);
       if (fatal) {
         goLive(false);
@@ -164,10 +181,10 @@ export function VoiceAssistant({
       if (t) {
         handleUserTextRef.current?.(t);
       } else if (liveRef.current) {
-        // silence — keep the line open and listen again shortly
+        // nothing said — keep the line open and listen again shortly
         restartTimerRef.current = setTimeout(
           () => beginListeningRef.current?.(),
-          400
+          300
         );
       }
     };
@@ -372,6 +389,7 @@ export function VoiceAssistant({
 
   const stopEverything = useCallback(() => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     try {
       recognitionRef.current?.abort();
     } catch {
@@ -410,6 +428,7 @@ export function VoiceAssistant({
     () => () => {
       liveRef.current = false;
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       try {
         recognitionRef.current?.abort();
       } catch {
