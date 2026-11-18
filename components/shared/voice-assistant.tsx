@@ -77,13 +77,17 @@ export function VoiceAssistant({
   userName,
   context,
   signalPrompt,
+  openKey = 0,
 }: {
   userName: string;
   context: VoiceContext;
   /** When `key` changes, auto-start the call and announce the new signal. */
   signalPrompt?: SignalPrompt | null;
+  /** Bump to open the bar immediately ("connecting") before the signal lands. */
+  openKey?: number;
 }) {
   const [ambient, setAmbient] = useState(false); // call active / bar visible
+  const [preparing, setPreparing] = useState(false); // opened, awaiting signal
   const [live, setLive] = useState(false); // hands-free loop running (not paused)
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -311,6 +315,7 @@ export function VoiceAssistant({
   const startWithMessage = useCallback(
     (display: string, speak: string, fresh: boolean) => {
       setAmbient(true);
+      setPreparing(false); // the signal landed — stop "connecting"
       goLive(true);
       setSpeaking(true);
       setMessages((prev) =>
@@ -354,6 +359,17 @@ export function VoiceAssistant({
     return () => clearTimeout(t);
   }, [signalKey]);
 
+  // Open the bar the instant "Generate" is pressed — it shows "connecting" until
+  // the signal resolves and the announcement (signalPrompt) takes over.
+  useEffect(() => {
+    if (!openKey) return;
+    const t = setTimeout(() => {
+      setAmbient(true);
+      setPreparing(true);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [openKey]);
+
   const stopEverything = useCallback(() => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
     try {
@@ -385,6 +401,7 @@ export function VoiceAssistant({
     goLive(false);
     stopEverything();
     setThinking(false);
+    setPreparing(false);
     setAmbient(false);
   }, [goLive, stopEverything]);
 
@@ -414,7 +431,7 @@ export function VoiceAssistant({
     <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2">
       <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-muted text-primary">
         <Bot className="size-4" />
-        {(listening || speaking || thinking) && (
+        {(listening || speaking || thinking || preparing) && (
           <span className="absolute inset-0 rounded-full border border-primary/40 motion-safe:animate-ping" />
         )}
       </span>
@@ -423,22 +440,25 @@ export function VoiceAssistant({
           AI Assistant · Live
         </p>
         <p className="truncate text-[11px] text-muted-foreground">
-          {!live
-            ? "روکا گیا"
-            : speaking
-              ? "بول رہا ہوں…"
-              : thinking
-                ? "سوچ رہا ہوں…"
-                : listening
-                  ? "سن رہا ہوں… بولیں"
-                  : "…"}
+          {preparing
+            ? "سگنل آ رہا ہے…"
+            : !live
+              ? "روکا گیا"
+              : speaking
+                ? "بول رہا ہوں…"
+                : thinking
+                  ? "سوچ رہا ہوں…"
+                  : listening
+                    ? "سن رہا ہوں… بولیں"
+                    : "…"}
         </p>
       </div>
       <button
         type="button"
         onClick={togglePause}
+        disabled={preparing}
         aria-label={live ? "Pause" : "Resume"}
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-foreground transition-colors hover:bg-muted"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-foreground transition-colors hover:bg-muted disabled:opacity-40"
       >
         {live ? <Pause className="size-4" /> : <Mic className="size-4" />}
       </button>

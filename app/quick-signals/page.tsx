@@ -72,6 +72,9 @@ export default function QuickSignalsPage() {
     key: number;
     direction: Direction;
   } | null>(null);
+  // Bumped the instant "Generate" is pressed so the call bar opens immediately
+  // ("signal aa raha hai…"), before the signal has even resolved.
+  const [callOpenKey, setCallOpenKey] = useState(0);
 
   // Signed-in user's first name — used by the voice assistant.
   const { data: session } = authClient.useSession();
@@ -144,18 +147,27 @@ export default function QuickSignalsPage() {
       setWeekendDismissed(false);
       return;
     }
+    // Open the voice call bar immediately so it starts "connecting" right away.
+    if (voiceRef.current) setCallOpenKey((k) => k + 1);
     setPhase("analyzing");
     setSignal(null);
     const sec = seconds;
     const chosen = pair;
     const started = Date.now();
 
-    // Apply the resolved signal, keeping the "analyzing" animation ~1.2s.
+    // Apply the resolved signal, keeping a short "analyzing" animation.
     const apply = (
       sig: QuickSignal,
       src: "tradingview" | "live" | "illustrative"
     ) => {
-      const wait = Math.max(0, 1200 - (Date.now() - started));
+      // Start the voice call the INSTANT the signal is known — don't wait for
+      // the analyzing animation, so the AI begins talking right away.
+      if (voiceRef.current)
+        setSignalPrompt((p) => ({
+          key: (p?.key ?? 0) + 1,
+          direction: sig.direction,
+        }));
+      const wait = Math.max(0, 600 - (Date.now() - started));
       window.setTimeout(() => {
         setSignal(sig);
         setSignalSource(src);
@@ -163,11 +175,6 @@ export default function QuickSignalsPage() {
         setTradeSeconds(sec);
         setEntryLeft(ENTRY_LEAD);
         setPhase("entry");
-        if (voiceRef.current)
-          setSignalPrompt((p) => ({
-            key: (p?.key ?? 0) + 1,
-            direction: sig.direction,
-          }));
         idRef.current += 1;
         setRecent((prev) =>
           [
@@ -464,6 +471,7 @@ export default function QuickSignalsPage() {
               <div className="mt-3 w-full max-w-sm">
                 <VoiceAssistant
                   userName={firstName}
+                  openKey={callOpenKey}
                   signalPrompt={signalPrompt}
                   context={{
                     pairLabel,

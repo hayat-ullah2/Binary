@@ -55,7 +55,9 @@ export async function fetchTradingViewRating(
           columns: [column],
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(6000),
+        // Keep this short so a slow/unreachable TradingView falls back fast and
+        // the signal (and the voice call) can start without a long wait.
+        signal: AbortSignal.timeout(3000),
       }
     );
     if (!res.ok) return null;
