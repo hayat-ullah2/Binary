@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PhoneOff, Mic, Pause, Bot } from "lucide-react";
-import { speakUrduHindi } from "@/lib/speech";
+import { speakUrduHindi, pickVoiceSetup } from "@/lib/speech";
 
 /* ── Minimal Web Speech API typings (not in the DOM lib) ─────────────────── */
 interface SRAlternative {
@@ -183,16 +183,74 @@ export function VoiceAssistant({
   const handleUserText = useCallback(
     async (text: string) => {
       const userMsg: Msg = { role: "user", text };
+      const history = [...messagesRef.current, userMsg]
+        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.text }));
       setMessages((prev) => [...prev, userMsg]);
       setThinking(true);
-      // `display` is Urdu (for the account/history); `speak` is Hindi — the
-      // speaker picks an Urdu voice + Urdu text when available, else Hindi.
-      let display = "معاف کیجیے، دوبارہ کوشش کریں۔";
-      let speak = "माफ़ कीजिए, दोबारा कोशिश करें।";
+
+      // One voice/script for the whole turn — the server streams in that script
+      // so we can start speaking on the first finished sentence.
+      const setup = pickVoiceSetup();
       try {
-        const history = [...messagesRef.current, userMsg]
-          .slice(-8)
-          .map((m) => ({ role: m.role, content: m.text }));
+        window.speechSynthesis?.cancel();
+      } catch {
+        /* ignore */
+      }
+
+      let assistantText = "";
+      let spokenUpTo = 0;
+      let pending = 0; // utterances still queued/speaking
+      let streamDone = false;
+      let resumed = false;
+      let started = false;
+
+      const maybeResume = () => {
+        if (!streamDone || pending > 0 || resumed) return;
+        resumed = true;
+        setSpeaking(false);
+        if (liveRef.current)
+          restartTimerRef.current = setTimeout(() => beginListening(), 150);
+      };
+      const speakChunk = (chunk: string) => {
+        const t = chunk.trim();
+        if (!t) return;
+        pending++;
+        try {
+          const u = new SpeechSynthesisUtterance(t);
+          u.lang = setup.lang;
+          if (setup.voice) u.voice = setup.voice;
+          u.rate = 1;
+          u.pitch = 1;
+          const done = () => {
+            pending = Math.max(0, pending - 1);
+            maybeResume();
+          };
+          u.onend = done;
+          u.onerror = done;
+          window.speechSynthesis.speak(u); // queues after any in-progress chunk
+        } catch {
+          pending = Math.max(0, pending - 1);
+        }
+      };
+      const isBoundary = (c: string) =>
+        c === "۔" || c === "।" || c === "." || c === "!" || c === "?" || c === "؟";
+      const flush = (final: boolean) => {
+        let last = spokenUpTo;
+        for (let i = spokenUpTo; i < assistantText.length; i++) {
+          if (isBoundary(assistantText[i])) {
+            speakChunk(assistantText.slice(last, i + 1));
+            last = i + 1;
+          }
+        }
+        spokenUpTo = last;
+        if (final && spokenUpTo < assistantText.length) {
+          speakChunk(assistantText.slice(spokenUpTo));
+          spokenUpTo = assistantText.length;
+        }
+      };
+
+      try {
         const res = await fetch("/api/voice-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -200,28 +258,46 @@ export function VoiceAssistant({
             messages: history,
             userName,
             context: contextRef.current,
+            voiceLang: setup.voiceLang,
           }),
         });
-        const data = (await res.json()) as { reply?: string; speak?: string };
-        if (data.reply?.trim()) {
-          display = data.reply.trim();
-          speak = data.speak?.trim() || display;
+        if (!res.body) throw new Error("no stream");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (!chunk) continue;
+          if (!started) {
+            started = true;
+            setThinking(false);
+            setSpeaking(true);
+          }
+          assistantText += chunk;
+          flush(false); // speak each completed sentence as it arrives
         }
+        setThinking(false);
+        streamDone = true;
+        flush(true);
+        if (assistantText.trim())
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: assistantText.trim() },
+          ]);
+        maybeResume();
       } catch {
-        display = "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔";
-        speak = "माफ़ कीजिए, कनेक्शन में समस्या है। दोबारा कोशिश करें।";
+        setThinking(false);
+        const err =
+          setup.voiceLang === "ur"
+            ? "معاف کیجیے، کنکشن میں مسئلہ ہے۔ دوبارہ کوشش کریں۔"
+            : "माफ़ कीजिए, कनेक्शन में समस्या है। दोबारा कोशिश करें।";
+        setMessages((prev) => [...prev, { role: "assistant", text: err }]);
+        setSpeaking(true);
+        streamDone = true;
+        speakChunk(err);
+        maybeResume();
       }
-      setThinking(false);
-      setMessages((prev) => [...prev, { role: "assistant", text: display }]);
-      setSpeaking(true);
-      speakUrduHindi(display, speak, {
-        onEnd: () => {
-          setSpeaking(false);
-          // Hands-free: resume listening automatically after the AI finishes.
-          if (liveRef.current)
-            restartTimerRef.current = setTimeout(() => beginListening(), 200);
-        },
-      });
     },
     [userName, beginListening]
   );

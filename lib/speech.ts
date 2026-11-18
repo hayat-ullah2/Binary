@@ -17,6 +17,21 @@ function findVoice(prefix: string): SpeechSynthesisVoice | null {
 }
 
 /**
+ * The best speaking setup for this device: Urdu (Pakistani accent) when an Urdu
+ * voice is installed, else Hindi. `voiceLang` is sent to the server so the model
+ * replies in just that one script (half the tokens, faster + streamable).
+ */
+export function pickVoiceSetup(): {
+  voiceLang: "ur" | "hi";
+  voice: SpeechSynthesisVoice | null;
+  lang: string;
+} {
+  const ur = findVoice("ur");
+  if (ur) return { voiceLang: "ur", voice: ur, lang: "ur-PK" };
+  return { voiceLang: "hi", voice: findVoice("hi"), lang: "hi-IN" };
+}
+
+/**
  * Speak a message, choosing the most natural voice available: Urdu (Pakistani
  * accent, Nastaliq text) when present, else Hindi (Devanagari text). Pass both
  * scripts of the SAME message. `onEnd` fires when speech finishes (or at once if
