@@ -37,7 +37,7 @@ npx tsc --noEmit  # type check
 - Registration and email/password login use Better Auth. After registering, users submit their Quotex Account ID / UID; the admin reviews it from **Admin → Users** and approves dashboard access. Approval is monitored automatically while the user is waiting.
 - Only the Quotex Account ID / UID is requested. Never collect Quotex passwords, OTPs, or SID values. Approval is a manual admin review; it does not verify identities with Quotex.
 - Admin access requires configured `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` values; the app does not use built-in fallback credentials. Use strong, unique values in production.
-- Email verification and Telegram authentication are not enabled. The Telegram link opens the group invite, and the account-access screen's **Open Quotex** button opens `https://quotex.com/sign-up/?lid=881991`.
+- Email verification and Telegram authentication are not enabled. The Telegram link opens the group invite, and the account-access screen's **Open Quotex** button opens `https://quotex.com/sign-up/?lid=2433933`.
 
 ## Routes
 
