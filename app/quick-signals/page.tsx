@@ -401,7 +401,7 @@ export default function QuickSignalsPage() {
                     active={pair === sym}
                     onClick={() => setPair(sym)}
                   >
-                    {getPair(sym).label}
+                    {quickPairLabel(sym)}
                   </Chip>
                 ))}
               </div>
