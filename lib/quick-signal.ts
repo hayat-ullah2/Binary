@@ -28,8 +28,8 @@ export const QUICK_TIMEFRAMES: QuickTimeframe[] = [
   { seconds: 900, label: "15m" },
 ];
 
-/** Pairs offered on the quick-signal board (majors + gold). */
-export const QUICK_PAIRS = [
+/** Pairs available on the live quick-signal board. */
+export const QUICK_LIVE_PAIRS = [
   "EURUSD",
   "GBPUSD",
   "USDJPY",
@@ -38,6 +38,25 @@ export const QUICK_PAIRS = [
   "USDCHF",
   "EURJPY",
   "GBPJPY",
+];
+
+/** OTC instruments are synthetic and remain available outside live FX hours. */
+export const QUICK_OTC_PAIRS = [
+  ...QUICK_LIVE_PAIRS,
+  "NZDJPY",
+  "USDMXN",
+  "USDPKR",
+  "USDPHP",
+  "GBPAUD",
+  "CHFJPY",
+  "USDBRL",
+  "USDEGP",
+  "USDINR",
+  "CADJPY",
+  "GBPNZD",
+  "USDARS",
+  "GBPCHF",
+  "USDCOP",
 ];
 
 export interface QuickSignal {

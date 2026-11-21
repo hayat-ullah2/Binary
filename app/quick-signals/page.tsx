@@ -32,7 +32,8 @@ import { getPair } from "@/lib/mock-data";
 import { useQuotes } from "@/lib/hooks/use-quotes";
 import {
   QUICK_TIMEFRAMES,
-  QUICK_PAIRS,
+  QUICK_LIVE_PAIRS,
+  QUICK_OTC_PAIRS,
   deterministicQuickSignal,
   quickWindowMs,
   type QuickSignal,
@@ -45,6 +46,13 @@ function mmss(total: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function quickPairLabel(pair: string): string {
+  const knownPair = getPair(pair);
+  return knownPair.symbol === pair
+    ? knownPair.label
+    : `${pair.slice(0, 3)}/${pair.slice(3)}`;
 }
 
 interface RecentItem {
@@ -106,7 +114,8 @@ export default function QuickSignalsPage() {
   // server and first client render match; the real value is set after mount.
   const [marketClosed, setMarketClosed] = useState(false);
   const [weekendDismissed, setWeekendDismissed] = useState(false);
-  const showWeekendModal = marketClosed && !weekendDismissed;
+  const liveMarketClosed = mode === "LIVE" && marketClosed;
+  const showWeekendModal = liveMarketClosed && !weekendDismissed;
 
   // Re-check the day every minute so the modal clears on its own when Monday
   // (UTC+6) arrives, without a page refresh. Deferred into timer callbacks so no
@@ -129,7 +138,7 @@ export default function QuickSignalsPage() {
   const active = phase === "entry" || phase === "progress";
 
   const { map: quoteMap, source } = useQuotes();
-  const pairLabel = getPair(pair).label;
+  const pairLabel = quickPairLabel(pair);
   const decimals = getPair(pair).decimals;
   const quote = quoteMap[pair];
   const mid = quote ? (quote.bid + quote.ask) / 2 : null;
@@ -138,11 +147,14 @@ export default function QuickSignalsPage() {
   function changeMode(next: "OTC" | "LIVE") {
     setMode(next);
     if (next === "LIVE" && seconds < 60) setSeconds(60);
+    if (next === "LIVE" && !QUICK_LIVE_PAIRS.includes(pair)) {
+      setPair(QUICK_LIVE_PAIRS[0]);
+    }
   }
 
   const generate = useCallback(() => {
-    // Market is closed on the weekend — bounce back to the modal, don't generate.
-    if (isWeekend()) {
+    // Only live FX closes on weekends; OTC uses its synthetic signal path.
+    if (mode === "LIVE" && isWeekend()) {
       setMarketClosed(true);
       setWeekendDismissed(false);
       return;
@@ -200,7 +212,7 @@ export default function QuickSignalsPage() {
     void (async () => {
       try {
         const res = await fetch(
-          `/api/quick-signal?pair=${encodeURIComponent(chosen)}&tf=${sec}`,
+          `/api/quick-signal?pair=${encodeURIComponent(chosen)}&tf=${sec}&mode=${mode}`,
           { cache: "no-store" }
         );
         if (!res.ok) throw new Error("bad response");
@@ -223,7 +235,7 @@ export default function QuickSignalsPage() {
         );
       }
     })();
-  }, [pair, seconds]);
+  }, [mode, pair, seconds]);
 
   // Phase 1 — "take trade in" countdown; when it hits 0 the trade starts.
   useEffect(() => {
@@ -258,6 +270,8 @@ export default function QuickSignalsPage() {
             ? secondsLeft / tradeSeconds
             : 0
           : 0;
+  const availablePairs =
+    mode === "OTC" ? QUICK_OTC_PAIRS : QUICK_LIVE_PAIRS;
 
   return (
     <div className="space-y-6">
@@ -381,7 +395,7 @@ export default function QuickSignalsPage() {
                 Currency pair
               </p>
               <div className="flex flex-wrap gap-2">
-                {QUICK_PAIRS.map((sym) => (
+                {availablePairs.map((sym) => (
                   <Chip
                     key={sym}
                     active={pair === sym}
@@ -436,10 +450,10 @@ export default function QuickSignalsPage() {
                 <Button
                   size="lg"
                   onClick={generate}
-                  disabled={phase === "analyzing" || marketClosed}
+                  disabled={phase === "analyzing" || liveMarketClosed}
                   className="w-full sm:w-auto"
                 >
-                  {marketClosed ? (
+                  {liveMarketClosed ? (
                     <>
                       <CalendarOff className="size-4" />
                       Market closed
@@ -483,7 +497,7 @@ export default function QuickSignalsPage() {
                 />
               </div>
 
-              {marketClosed && (
+              {liveMarketClosed && (
                 <p className="mt-3 flex items-center gap-1.5 text-center text-xs text-muted-foreground">
                   <CalendarOff className="size-3.5" />
                   Market closed for the weekend — signals resume Monday.
@@ -617,7 +631,7 @@ export default function QuickSignalsPage() {
                         </span>
                         <div className="leading-tight">
                           <p className="text-sm font-medium text-foreground">
-                            {getPair(r.pair).label}
+                            {quickPairLabel(r.pair)}
                           </p>
                           <p className="text-[11px] text-muted-foreground tabular-nums">
                             {r.seconds}s · {r.time}

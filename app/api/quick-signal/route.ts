@@ -30,15 +30,21 @@ export async function GET(req: Request) {
   const pair = (searchParams.get("pair") ?? "EURUSD").toUpperCase();
   const tf = searchParams.get("tf") ?? "30";
   const tfSeconds = Number(tf) || 60;
+  const mode = searchParams.get("mode") === "OTC" ? "OTC" : "LIVE";
 
   const windowMs = quickWindowMs(tfSeconds);
   const now = Date.now();
   const bucket = Math.floor(now / windowMs);
   const base = { pair, tf, bucket, validForMs: (bucket + 1) * windowMs - now };
 
-  // Sub-minute → deterministic illustrative signal.
-  if (tfSeconds < 60) {
-    const signal = deterministicQuickSignal(pair, String(tfSeconds), bucket);
+  // OTC instruments are synthetic, so their signals are available 24/7.
+  // Sub-minute live expiries also use the illustrative signal path.
+  if (mode === "OTC" || tfSeconds < 60) {
+    const signal = deterministicQuickSignal(
+      pair,
+      `${mode}:${tfSeconds}`,
+      bucket
+    );
     return NextResponse.json({ ...signal, ...base, source: "illustrative" });
   }
 
