@@ -266,7 +266,7 @@ export function AccountStatusScreen({
           className="h-11 w-full rounded-xl border-transparent bg-[#1A1C25] font-semibold text-rose-500 hover:bg-[#222530] hover:text-rose-400"
         >
           <Link
-            href="https://quotex.com/sign-up/?lid=2433933"
+            href="https://quotex.com/sign-up/?lid=520109"
             target="_blank"
             rel="noopener noreferrer"
           >
