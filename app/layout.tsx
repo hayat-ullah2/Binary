@@ -22,9 +22,7 @@ export const metadata: Metadata = {
   description:
     "SHARP PRO BOT is a premium Forex trading-signals platform with live market data and analytics.",
   applicationName: "SHARP PRO BOT",
-  icons: {
-    icon: "/sharp-pro-bot.svg",
-  },
+  // Favicon comes from app/icon.svg (Next.js file convention).
 };
 
 export default function RootLayout({
