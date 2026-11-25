@@ -1,12 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, LoaderCircle, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
+import {
+  Check,
+  LoaderCircle,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "lucide-react";
 import { AdminFrame } from "@/components/admin/admin-frame";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -49,6 +58,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const loadUsers = useCallback(async () => {
     try {
@@ -121,6 +131,17 @@ export default function AdminUsersPage() {
     (user) => user.approvalStatus === "PENDING"
   ).length;
 
+  // Filter by Quotex ID (primary), plus name/email for convenience.
+  const q = query.trim().toLowerCase();
+  const filteredUsers = q
+    ? users.filter(
+        (user) =>
+          (user.quotexAccountId ?? "").toLowerCase().includes(q) ||
+          user.name.toLowerCase().includes(q) ||
+          user.email.toLowerCase().includes(q)
+      )
+    : users;
+
   return (
     <AdminFrame>
       <div className="space-y-6">
@@ -186,6 +207,18 @@ export default function AdminUsersPage() {
           </p>
         )}
 
+        <div className="relative max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search Quotex ID, name or email…"
+            className="pl-9"
+            aria-label="Search by Quotex ID, name or email"
+          />
+        </div>
+
         <Card>
           <CardContent className="overflow-x-auto p-0">
             <Table>
@@ -208,17 +241,19 @@ export default function AdminUsersPage() {
                       <LoaderCircle className="mx-auto size-5 animate-spin" />
                     </TableCell>
                   </TableRow>
-                ) : users.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={5}
                       className="h-28 text-center text-sm text-muted-foreground"
                     >
-                      No registered users yet.
+                      {users.length === 0
+                        ? "No registered users yet."
+                        : "No users match your search."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user) => (
+                  filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="font-medium text-foreground">
