@@ -17,7 +17,7 @@ export {
 } from "./auth-schema";
 
 /**
- * SHARP X REBEL database schema (Neon PostgreSQL via Drizzle ORM).
+ * SHARP PRO BOT database schema (Neon PostgreSQL via Drizzle ORM).
  * Mirrors types/forex.ts so the app can migrate from mock data to the DB.
  */
 

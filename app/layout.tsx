@@ -16,14 +16,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "SHARP X REBEL — Forex Trading Signals",
-    template: "%s · SHARP X REBEL",
+    default: "SHARP PRO BOT — Forex Trading Signals",
+    template: "%s · SHARP PRO BOT",
   },
   description:
-    "SHARP X REBEL is a premium Forex trading-signals platform with live market data and analytics.",
-  applicationName: "SHARP X REBEL",
+    "SHARP PRO BOT is a premium Forex trading-signals platform with live market data and analytics.",
+  applicationName: "SHARP PRO BOT",
   icons: {
-    icon: "/sharp-x-rebel.svg",
+    icon: "/sharp-pro-bot.svg",
   },
 };
 

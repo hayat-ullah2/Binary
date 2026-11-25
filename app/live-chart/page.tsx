@@ -68,7 +68,7 @@ export default function LiveChartPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Charts and prices here are provided by TradingView. Your SHARP X REBEL
+        Charts and prices here are provided by TradingView. Your SHARP PRO BOT
         signals and analytics are generated separately by the app&apos;s own engine.
       </p>
     </div>

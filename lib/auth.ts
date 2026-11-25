@@ -22,7 +22,7 @@ if (!baseURL) {
 }
 
 export const auth = betterAuth({
-  appName: "SHARP X REBEL",
+  appName: "SHARP PRO BOT",
   baseURL,
   secret,
   database: drizzleAdapter(db, {

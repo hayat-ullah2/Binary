@@ -44,7 +44,7 @@ const QUICK: { chip: string; answer: string }[] = [
 ];
 
 const GREETING =
-  "Hi! I'm your SHARP X REBEL AI assistant. Tap a chip below to learn about strategies, risk management, automation and more.";
+  "Hi! I'm your SHARP PRO BOT AI assistant. Tap a chip below to learn about strategies, risk management, automation and more.";
 
 function fallbackAnswer(q: string): string {
   const t = q.toLowerCase();

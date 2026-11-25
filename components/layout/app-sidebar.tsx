@@ -36,7 +36,7 @@ export function AppSidebar({
             collapsed ? "justify-center" : "justify-between"
           )}
         >
-          <Link href="/" aria-label="SHARP X REBEL home">
+          <Link href="/" aria-label="SHARP PRO BOT home">
             <Logo collapsed={collapsed} />
           </Link>
         </div>

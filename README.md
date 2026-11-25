@@ -1,4 +1,4 @@
-# SHARP X REBEL — Forex Trading Signals (UI Prototype)
+# SHARP PRO BOT — Forex Trading Signals (UI Prototype)
 
 A premium Forex trading-signals interface built with Next.js, TypeScript, and Tailwind CSS. The dashboard uses illustrative sample data; account registration and access approvals are backed by PostgreSQL.
 

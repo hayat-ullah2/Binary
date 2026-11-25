@@ -357,7 +357,7 @@ export function SignUpScreen() {
             </Button>
 
             <p className="mt-5 text-center text-sm text-muted-foreground">
-              {isSignUp ? "Already have an account?" : "New to SHARP X REBEL?"}{" "}
+              {isSignUp ? "Already have an account?" : "New to SHARP PRO BOT?"}{" "}
               <button
                 type="button"
                 onClick={() => {
